@@ -1,0 +1,246 @@
+{
+  "homepage": {
+    "welcomeTitle": "Welcome to Binna's Logistics",
+    "welcomeText": "Binna's Logistics provides reliable shipping and sourcing solutions between China and Nigeria. We help businesses and individuals simplify international trade through efficient freight services, professional sourcing support, and dependable delivery solutions.",
+    "slides": [
+      {
+        "id": "slide-1",
+        "headline": "Reliable Shipping & Sourcing Between China and Nigeria",
+        "subheadline": "Helping businesses and individuals import products efficiently, safely, and affordably.",
+        "cta1Text": "Request a Quote",
+        "cta1Link": "contact",
+        "cta2Text": "Contact Us",
+        "cta2Link": "contact",
+        "image": "https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        "id": "slide-2",
+        "headline": "Your Trusted Logistics Partner",
+        "subheadline": "From product sourcing to final delivery, we handle every step with transparency and reliability.",
+        "cta1Text": "Explore Services",
+        "cta1Link": "services",
+        "cta2Text": "Get Started",
+        "cta2Link": "contact",
+        "image": "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80"
+      },
+      {
+        "id": "slide-3",
+        "headline": "Bridging the China-Nigeria Supply Chain",
+        "subheadline": "Seamless air & sea freight, cargo consolidation, customs clearance, and raw materials procurement.",
+        "cta1Text": "View Our Vision",
+        "cta1Link": "vision",
+        "cta2Text": "Learn More",
+        "cta2Link": "about",
+        "image": "https://images.unsplash.com/photo-1494412574643-ff11b0a5c1c3?auto=format&fit=crop&w=1200&q=80"
+      }
+    ],
+    "whyChooseUs": {
+      "title": "Why Choose Us",
+      "subtitle": "Unbeatable reliability and specialized expertise in China-Nigeria cargo networks.",
+      "items": [
+        {
+          "id": "why-1",
+          "title": "Reliable Delivery",
+          "description": "Your cargo arrives on time, fully secured. We coordinate and monitor transit closely at every single point."
+        },
+        {
+          "id": "why-2",
+          "title": "Cost-Effective Shipping",
+          "description": "Highly competitive shipping rates with zero hidden charges or surprise weight increments."
+        },
+        {
+          "id": "why-3",
+          "title": "Experienced Team",
+          "description": "Logistics professionals who fully understand customs, ports, and procurement regulations in China and Nigeria."
+        },
+        {
+          "id": "why-4",
+          "title": "Customer Support",
+          "description": "Dedicated assistance with fast response times. We keep you updated at every stage of the shipment."
+        },
+        {
+          "id": "why-5",
+          "title": "Fast Processing",
+          "description": "Daily flight departures and streamlined sea transport ensure cargo moves with minimal delay."
+        }
+      ]
+    },
+    "stats": {
+      "yearsOfExperience": "8+",
+      "successfulShipments": "15,200+",
+      "satisfiedClients": "4,500+",
+      "countriesConnected": "China & Nigeria"
+    },
+    "cta": {
+      "headline": "Ready to Move Your Cargo With Confidence?",
+      "subheadline": "Partner with Binna's Logistics for seamless sourcing, custom clearing, and shipping solutions.",
+      "buttonText": "Request a Quote"
+    }
+  },
+  "about": {
+    "title": "About Binna's Logistics",
+    "content": "Binna's Logistics is a professional shipping and sourcing company dedicated to bridging trade opportunities between China and Nigeria. Our mission is to simplify global trade for businesses and individuals by providing dependable sourcing, freight forwarding, cargo handling, and logistics solutions.\n\nWe work closely with trusted suppliers, manufacturers, and shipping partners to ensure that every shipment arrives safely, efficiently, and on schedule.\n\nOur commitment to transparency, affordability, and customer satisfaction has made us a trusted logistics partner for businesses across various industries.",
+    "companyOverview": "Established as a premier link in international logistics, Binna's Logistics manages a comprehensive trade network between manufacturing hubs in China and major distribution centres in Nigeria. We oversee your cargo journey from factories in Guangzhou, Yiwu, or Shenzhen straight to your warehouse or doorstep in Lagos, Abuja, Onitsha, or Kano.",
+    "ourStory": "Our story began with a simple observation: importing goods from China to Nigeria was fraught with delays, hidden fees, and unreliable brokers. We established Binna's Logistics to provide a direct, reliable, and premium service that treats your business cargo with the urgency it deserves. Today, we handle millions of kilograms of cargo annually, supporting thousands of small businesses and entrepreneurs.",
+    "ourValues": [
+      {
+        "id": "val-1",
+        "title": "Absolute Integrity",
+        "description": "No hidden charges, honest weight assessments, and clear timelines."
+      },
+      {
+        "id": "val-2",
+        "title": "Customer First",
+        "description": "Dedicated assistance for individual buyers and corporate managers alike."
+      },
+      {
+        "id": "val-3",
+        "title": "Speed & Safety",
+        "description": "Leveraging strategic air and sea routes for secure, timely cargo delivery."
+      },
+      {
+        "id": "val-4",
+        "title": "Continuous Excellence",
+        "description": "Constantly optimizing our logistics chain to offer the best rates."
+      }
+    ],
+    "whyClientsTrustUs": "Clients trust us because we do not just ship containers; we support livelihoods. Our active tracking, physical offices in both China and Nigeria, and experienced on-ground sourcing agents remove the stress from your supply chain entirely."
+  },
+  "services": [
+    {
+      "id": "service-sourcing",
+      "title": "Product Sourcing",
+      "description": "We help clients identify reliable suppliers and manufacturers in China, ensuring quality products and competitive pricing.",
+      "icon": "Search",
+      "details": "Our team visits factories, inspects product samples, negotiates wholesale pricing, and verifies business licenses to protect your investments."
+    },
+    {
+      "id": "service-air",
+      "title": "Air Freight",
+      "description": "Fast and secure air shipping solutions for urgent cargo and time-sensitive deliveries.",
+      "icon": "Plane",
+      "details": "With multiple departures per week from Guangzhou, cargo typically arrives in Lagos in 5-7 business days, including smooth customs clearance."
+    },
+    {
+      "id": "service-sea",
+      "title": "Sea Freight",
+      "description": "Affordable and efficient sea freight services for bulk and commercial shipments.",
+      "icon": "Ship",
+      "details": "We manage Full Container Loads (FCL) and Less than Container Loads (LCL) groupage with reliable clearing procedures at Lagos ports."
+    },
+    {
+      "id": "service-consolidation",
+      "title": "Cargo Consolidation",
+      "description": "Combine multiple purchases into a single shipment to reduce transportation costs.",
+      "icon": "PackageOpen",
+      "details": "Send your items from various vendors to our China warehouses. We will bundle them together securely to save you significant freight costs."
+    },
+    {
+      "id": "service-customs",
+      "title": "Customs Assistance",
+      "description": "Support with documentation, customs clearance, and regulatory requirements.",
+      "icon": "FileText",
+      "details": "We handle all complex port clearance documentation, Form M processing, and regulatory compliance, saving you from administrative headaches."
+    },
+    {
+      "id": "service-procurement",
+      "title": "Procurement Support",
+      "description": "Professional procurement services for businesses requiring supplier negotiation and purchasing assistance.",
+      "icon": "CreditCard",
+      "details": "Struggling with payments to Chinese suppliers? We handle RMB transfers, purchase orders, and secure financial handovers safely."
+    }
+  ],
+  "vision": {
+    "title": "Our Vision",
+    "content": "To become the most trusted and preferred logistics and sourcing partner connecting China and Nigeria, enabling businesses and individuals to trade globally with confidence, efficiency, and peace of mind.",
+    "statement": "To define the future of bilateral trade logistics between China and Nigeria through innovation, customer centricity, and absolute transparency.",
+    "longTermGoals": "Establishing automated consolidation warehouses in key Chinese and Nigerian commercial hubs, developing online digital logistics suites, and training the next generation of logistics experts.",
+    "growthStrategy": "Expanding strategic carrier alliances, standardizing multi-modal sea-to-door transit pipelines, and leveraging custom technology to secure fast clearance protocols.",
+    "commitmentToExcellence": "Maintaining zero-loss cargo guarantees, rigorous staff training, transparent communication practices, and premium handling protocols for every client."
+  },
+  "mission": {
+    "title": "Our Mission",
+    "content": "Our mission is to provide reliable, affordable, transparent, and efficient sourcing and shipping solutions that empower businesses and individuals to access global markets and achieve sustainable growth.",
+    "customerCommitment": "We commit to providing personal, responsive assistance to every client. Your queries are answered within minutes, your invoices are transparent, and your packages are treated with absolute respect.",
+    "serviceExcellence": "Our operational logistics pipeline is designed to eliminate bottlenecks. We maintain daily handovers with airline cargo wings and streamlined customs procedures to move packages swiftly.",
+    "innovation": "We introduce modern logistics tracking, digital invoice retrieval, and online procurement sheets to make international shipping as effortless as purchasing locally.",
+    "reliability": "We deliver what we promise. If we state a cargo flight arrives in 5-7 business days, we optimize every detail to meet or beat that target.",
+    "transparency": "No weight manipulation, no surprise clearing fees. What we quote is what you pay, clearly itemized from day one."
+  },
+  "contact": {
+    "title": "Contact Us",
+    "officeAddressNigeria": "limousine Park, International Airport, Lagos, Nigeria",
+    "officeAddressChina": "Room 408, Jincheng Building, Sanyuanli, Baiyun District, Guangzhou, China",
+    "phoneNigeria": "08160850963",
+    "phoneChina": "+86 138 1234 5678",
+    "whatsApp": "+2348160850963",
+    "email": "binnaschina@gmail.com",
+    "businessHours": "24/7"
+  },
+  "seo": {
+    "metaTitle": "Binna's Logistics | China to Nigeria Sourcing & Shipping",
+    "metaDescription": "Binna's Logistics offers dependable air freight, sea freight, customs clearance, and procurement services connecting Guangzhou and Nigeria seamlessly.",
+    "keywords": "Guangzhou to Lagos shipping, China sourcing agent Nigeria, cargo consolidation, air freight Lagos, sea freight Nigeria"
+  },
+  "news": [
+    {
+      "id": "news-1",
+      "title": "Guangzhou Autumn Trade Fair Sourcing Open",
+      "date": "2026-06-28",
+      "category": "Sourcing",
+      "summary": "We are accepting procurement requests for the upcoming Autumn Canton Fair. Secure top suppliers with our professional on-ground agents.",
+      "content": "The Canton Trade Fair in Guangzhou is the premier event for global importers. Our physical office and sourcing experts are fully prepared to represent your business on the floor. We conduct direct factory audits, product validation, and custom price negotiations so you can access premium stock without the expense of travel."
+    },
+    {
+      "id": "news-2",
+      "title": "New Sea Freight Container Departures Scheduled",
+      "date": "2026-06-15",
+      "category": "Shipping",
+      "summary": "Our latest high-speed sea freight containers are loading this Friday. Consolidate your bulk items now for low groupage rates.",
+      "content": "To support our growing client base of wholesalers, we are increasing our sea freight schedule to weekly departures. Goods sent to our Guangzhou warehouse by Thursday will make the Friday loading cycle. Enjoy our fully custom-cleared delivery pipeline directly to Lagos with stress-free collections."
+    }
+  ],
+  "announcements": [
+    {
+      "id": "ann-1",
+      "title": "Normal Operations during Chinese National Holidays",
+      "content": "Our warehouse in China will remain active for receiving and consolidating items. Shipping schedules may face minor adjustments.",
+      "active": true
+    },
+    {
+      "id": "ann-2",
+      "title": "Air Freight Weight Rate Special Promo",
+      "content": "Get absolute lowest clearing rates this month for air cargo exceeding 100kg! Contact us on WhatsApp for your custom discount invoice.",
+      "active": true
+    }
+  ],
+  "submissions": [
+    {
+      "id": "sub-default-1",
+      "fullName": "Chinedu Okafor",
+      "companyName": "Okafor Electronics",
+      "email": "chinedu@okafor-elec.com",
+      "phone": "+234 803 111 2222",
+      "serviceNeeded": "Product Sourcing",
+      "message": "Hello, I am looking to import 500 units of smartphone chargers and high-quality powerbanks. Can you assist in sourcing a reliable factory in Yiwu/Guangzhou and consolidatimg them for shipping?",
+      "date": "2026-07-02T14:32:00Z",
+      "status": "Unread"
+    }
+  ],
+  "logs": [
+    {
+      "id": "log-1783093375132-724",
+      "action": "Admin Login Successful",
+      "details": "Successful login via dashboard credentials",
+      "timestamp": "2026-07-03T15:42:55.132Z",
+      "user": "Admin"
+    },
+    {
+      "id": "log-1",
+      "action": "Database Initialized",
+      "details": "System database populated with initial content matching the user specs.",
+      "timestamp": "2026-07-03T08:27:00.000Z",
+      "user": "System Admin"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Binna's Logistics",
+  "description": "Professional shipping and sourcing company connecting China and Nigeria with reliable air/sea freight, product sourcing, and customs clearance solutions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
