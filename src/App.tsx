@@ -23,6 +23,8 @@ import {
   AlertTriangle,
   LogOut,
   Eye,
+  EyeOff,
+  User,
   Settings,
   Database,
   Newspaper,
@@ -41,6 +43,7 @@ import {
   Loader2,
   Bell
 } from "lucide-react";
+import { createClient } from "@supabase/supabase-js";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import SubpageHeroSlider from "./components/SubpageHeroSlider";
@@ -59,9 +62,16 @@ export default function App() {
   const [adminToken, setAdminToken] = useState<string | null>(
     localStorage.getItem("binnas_admin_token")
   );
+  const [adminEmail, setAdminEmail] = useState<string>("");
   const [adminPassword, setAdminPassword] = useState<string>("");
+  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
   const [adminLoggingIn, setAdminLoggingIn] = useState<boolean>(false);
+
+  // Supabase dynamic client & session state
+  const [supabase, setSupabase] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [adminUser, setAdminUser] = useState<any>(null);
 
   // Admin Dashboard Tabs: 'overview', 'content', 'services', 'news', 'announcements', 'enquiries', 'media', 'seo', 'backup'
   const [adminTab, setAdminTab] = useState<string>("overview");
@@ -120,15 +130,128 @@ export default function App() {
     { name: "Corporate Trade Handshake", url: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&q=80" }
   ];
 
-  // Load state from Hash or defaults
+  // Load public Supabase config & initialize Client-side Auth
   useEffect(() => {
-    const hash = window.location.hash.replace("#", "");
-    if (hash && ["home", "about", "services", "vision", "mission", "contact", "admin"].includes(hash)) {
-      setCurrentTab(hash);
-    } else {
-      setCurrentTab("home");
-    }
+    let active = true;
+    let authSubscription: any = null;
+
+    const initSupabase = async () => {
+      try {
+        const res = await fetch("/api/config");
+        if (!res.ok) throw new Error("Failed to load configuration");
+        const config = await res.json();
+        
+        if (!active) return;
+
+        if (config.supabaseUrl && config.supabaseAnonKey) {
+          const client = createClient(config.supabaseUrl, config.supabaseAnonKey);
+          setSupabase(client);
+
+          // Restore existing login session automatically
+          const { data: { session } } = await client.auth.getSession();
+          if (session && active) {
+            const user = session.user;
+            if (user.email === "admin@binnaslogisticsglobal.com.ng") {
+              setAdminUser(user);
+              setAdminToken(session.access_token);
+              localStorage.setItem("binnas_admin_token", session.access_token);
+            } else {
+              await client.auth.signOut();
+              localStorage.removeItem("binnas_admin_token");
+              setAdminToken(null);
+              setAdminUser(null);
+            }
+          }
+
+          // Handle auth state changes in real-time
+          const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
+            if (!active) return;
+            if (session) {
+              const user = session.user;
+              if (user.email === "admin@binnaslogisticsglobal.com.ng") {
+                setAdminUser(user);
+                setAdminToken(session.access_token);
+                localStorage.setItem("binnas_admin_token", session.access_token);
+              } else {
+                await client.auth.signOut();
+                localStorage.removeItem("binnas_admin_token");
+                setAdminToken(null);
+                setAdminUser(null);
+              }
+            } else {
+              localStorage.removeItem("binnas_admin_token");
+              setAdminToken(null);
+              setAdminUser(null);
+            }
+          });
+
+          authSubscription = subscription;
+        } else {
+          // If Supabase keys are not set up yet, fallback to legacy check
+          const legacyToken = localStorage.getItem("binnas_admin_token");
+          if (legacyToken === "binnas-admin-token-2026" && active) {
+            setAdminToken(legacyToken);
+            setAdminUser({ email: "admin@binnaslogisticsglobal.com.ng", id: "legacy" });
+          }
+        }
+      } catch (err) {
+        console.error("Supabase dynamic initialization failed:", err);
+        // Graceful fallback to legacy check
+        const legacyToken = localStorage.getItem("binnas_admin_token");
+        if (legacyToken === "binnas-admin-token-2026" && active) {
+          setAdminToken(legacyToken);
+          setAdminUser({ email: "admin@binnaslogisticsglobal.com.ng", id: "legacy" });
+        }
+      } finally {
+        if (active) {
+          setAuthLoading(false);
+        }
+      }
+    };
+
+    initSupabase();
+
+    return () => {
+      active = false;
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+    };
   }, []);
+
+  // Protect Admin dashboard routes and manage direct URL navigation
+  useEffect(() => {
+    const handleNavigationCheck = () => {
+      const hash = window.location.hash.replace("#", "");
+      if (hash === "admin") {
+        if (authLoading) return; // Wait for session load
+        if (!adminToken || !adminUser) {
+          // Prevent direct unauthorized access to /#admin
+          setCurrentTab("admin-login");
+          window.location.hash = "admin-login";
+        } else {
+          setCurrentTab("admin");
+        }
+      } else if (hash === "admin-login") {
+        if (authLoading) return;
+        if (adminToken && adminUser) {
+          // If already authenticated, bypass login and redirect to admin dashboard
+          setCurrentTab("admin");
+          window.location.hash = "admin";
+        } else {
+          setCurrentTab("admin-login");
+        }
+      } else if (hash && ["home", "about", "services", "vision", "mission", "contact"].includes(hash)) {
+        setCurrentTab(hash);
+      } else if (!hash) {
+        setCurrentTab("home");
+      }
+    };
+
+    handleNavigationCheck();
+    window.addEventListener("hashchange", handleNavigationCheck);
+    return () => window.removeEventListener("hashchange", handleNavigationCheck);
+  }, [adminToken, adminUser, authLoading]);
 
   // Fetch DB function
   const fetchDB = async () => {
@@ -164,7 +287,7 @@ export default function App() {
           Authorization: `Bearer ${adminToken}`,
         },
       });
-      if (res.status === 403) {
+      if (res.status === 401 || res.status === 403) {
         // Token expired or invalid
         handleLogout();
         return;
@@ -209,32 +332,79 @@ export default function App() {
     e.preventDefault();
     setAdminLoggingIn(true);
     setAdminLoginError(null);
-    try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: adminPassword }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        localStorage.setItem("binnas_admin_token", data.token);
-        setAdminToken(data.token);
-        setAdminPassword("");
-        addToast("Welcome back! Admin Portal successfully authorized.", "success");
-      } else {
-        setAdminLoginError(data.error || "Login Failed");
+
+    if (!supabase) {
+      // Fallback behavior if Supabase keys aren't configured yet
+      if (adminEmail === "admin@binnaslogisticsglobal.com.ng" && adminPassword === "ibuchipeter2") {
+        const fallbackToken = "binnas-admin-token-2026";
+        localStorage.setItem("binnas_admin_token", fallbackToken);
+        setAdminToken(fallbackToken);
+        setAdminUser({ email: "admin@binnaslogisticsglobal.com.ng", id: "fallback-admin" });
+        addToast("Welcome back! Legacy Admin Portal authorized.", "success");
+        setCurrentTab("admin");
+        window.location.hash = "admin";
+        setAdminLoggingIn(false);
+        return;
       }
-    } catch (err) {
-      setAdminLoginError("Network error. Please make sure the backend server is active.");
+      setAdminLoginError("Supabase is not initialized. Please verify backend environment configuration.");
+      setAdminLoggingIn(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: adminEmail,
+        password: adminPassword,
+      });
+
+      if (error) {
+        setAdminLoginError(error.message);
+        addToast(`Login failed: ${error.message}`, "error");
+        return;
+      }
+
+      if (data.session) {
+        const user = data.session.user;
+        if (user.email === "admin@binnaslogisticsglobal.com.ng") {
+          localStorage.setItem("binnas_admin_token", data.session.access_token);
+          setAdminToken(data.session.access_token);
+          setAdminUser(user);
+          setAdminPassword("");
+          setAdminEmail("");
+          addToast("Secure administrator session successfully verified.", "success");
+          setCurrentTab("admin");
+          window.location.hash = "admin";
+        } else {
+          // If another user logs in, deny access and sign out immediately as per rule 4
+          setAdminLoginError("Access Denied: You are not authorized to view the administrator panel.");
+          addToast("Access Denied: Unauthorized account detected.", "error");
+          await supabase.auth.signOut();
+          localStorage.removeItem("binnas_admin_token");
+          setAdminToken(null);
+          setAdminUser(null);
+        }
+      }
+    } catch (err: any) {
+      setAdminLoginError(err.message || "An error occurred during authentication.");
     } finally {
       setAdminLoggingIn(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem("binnas_admin_token");
     setAdminToken(null);
+    setAdminUser(null);
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.error("Supabase signout exception:", err);
+      }
+    }
     addToast("Logged out of Admin Portal", "info");
+    setCurrentTab("admin-login");
+    window.location.hash = "admin-login";
   };
 
   // Sourcing cargo cost tool calculation
@@ -1756,62 +1926,136 @@ export default function App() {
           </div>
         )}
 
+        {/* ==================== 7. ADMIN LOGIN PAGE ==================== */}
+        {currentTab === "admin-login" && (
+          <div className="min-h-[800px] bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" id="admin-login-view">
+            <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-3xl border border-gray-150 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#0f4c81] to-[#dc2626]"></div>
+              
+              <div className="text-center">
+                <div className="mx-auto h-16 w-16 rounded-2xl bg-slate-50 flex items-center justify-center text-[#0f4c81] border border-gray-100 shadow-sm">
+                  <Lock className="h-8 w-8 text-[#0f4c81]" />
+                </div>
+                <h2 className="mt-6 text-3xl font-black text-gray-900 tracking-tight">
+                  Secure Admin Access
+                </h2>
+                <p className="mt-2 text-xs text-gray-500 max-w-xs mx-auto">
+                  Sign in to manage Binna's Logistics Global platform, database systems, and content settings.
+                </p>
+              </div>
+
+              {adminLoginError && (
+                <div className="rounded-xl bg-red-50 border border-red-150 p-4 text-xs font-semibold text-red-700 flex items-start gap-3 animate-in fade-in duration-200">
+                  <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-red-800 block mb-0.5">Authentication Issue</span>
+                    {adminLoginError}
+                  </div>
+                </div>
+              )}
+
+              <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="admin-email-field" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                      Administrator Email
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <User className="h-4.5 w-4.5 text-gray-400" />
+                      </div>
+                      <input
+                        id="admin-email-field"
+                        type="email"
+                        required
+                        placeholder="admin@binnaslogisticsglobal.com.ng"
+                        value={adminEmail}
+                        onChange={(e) => setAdminEmail(e.target.value)}
+                        className="block w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4c81] focus:border-transparent font-medium text-gray-800 transition-all duration-150"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-password-field" className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">
+                      Security Password
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                        <Lock className="h-4.5 w-4.5 text-gray-400" />
+                      </div>
+                      <input
+                        id="admin-password-field"
+                        type={showPassword ? "text" : "password"}
+                        required
+                        placeholder="•••••••••••••"
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        className="block w-full pl-10 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4c81] focus:border-transparent font-semibold text-gray-800 transition-all duration-150"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4.5 w-4.5" />
+                        ) : (
+                          <Eye className="h-4.5 w-4.5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {!supabase && (
+                  <div className="bg-amber-50 rounded-xl p-4 text-xs text-amber-900 border border-amber-200/50 leading-relaxed">
+                    <p className="font-extrabold flex items-center gap-1 mb-1">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                      Database Integration Pending
+                    </p>
+                    Your platform environment is loading or keys are not fully synchronized. You can log in using system seed credentials:
+                    <div className="mt-2 font-mono bg-amber-100/70 p-1.5 rounded text-[11px] text-amber-950">
+                      User: admin@binnaslogisticsglobal.com.ng<br/>
+                      Pass: ibuchipeter2
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <button
+                    type="submit"
+                    disabled={adminLoggingIn}
+                    className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-extrabold rounded-xl text-white bg-[#0f4c81] hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0f4c81] transition-all duration-150 shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {adminLoggingIn ? (
+                      <>
+                        <Loader2 className="animate-spin h-5 w-5 text-white mr-2" />
+                        Authenticating credentials...
+                      </>
+                    ) : (
+                      "Sign In as System Director"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* ==================== 7. ADMIN DASHBOARD ==================== */}
         {currentTab === "admin" && (
           <div className="py-12 bg-gray-100 min-h-[700px]" id="admin-page-view">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               
-              {!adminToken ? (
-                /* Login screen */
-                <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-gray-100 shadow-md space-y-6" id="admin-login-card">
-                  <div className="text-center space-y-2">
-                    <div className="w-14 h-14 rounded-2xl bg-red-50 text-[#dc2626] flex items-center justify-center mx-auto shadow-xs">
-                      <Lock size={28} />
-                    </div>
-                    <h2 className="text-2xl font-black text-gray-900">Admin Portal Gate</h2>
-                    <p className="text-xs text-gray-500 max-w-xs mx-auto">
-                      Please enter your credentials to authorize content edits, manage slider images, view logs, and backup database.
-                    </p>
-                  </div>
-
-                  {adminLoginError && (
-                    <div className="bg-red-50 border border-red-200 text-red-800 p-3.5 rounded-lg text-xs font-semibold flex items-center gap-2">
-                      <AlertTriangle size={15} className="text-red-500 flex-shrink-0" />
-                      <span>{adminLoginError}</span>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">Enter Admin Password</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••••••••"
-                        value={adminPassword}
-                        onChange={(e) => setAdminPassword(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 tracking-widest font-black"
-                      />
-                    </div>
-
-                    <div className="bg-amber-50 text-amber-900 p-3.5 rounded-lg text-xs leading-relaxed border border-amber-200/50">
-                      <strong>Access Hint:</strong> The system credentials is: <code className="bg-amber-100 px-1 py-0.5 rounded font-bold">ibuchipeter2</code>.
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={adminLoggingIn}
-                      className="w-full bg-[#0f4c81] hover:bg-blue-800 text-white font-extrabold text-sm py-3 rounded-lg shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {adminLoggingIn ? (
-                        <>
-                          <Loader2 size={16} className="animate-spin" /> Verifying...
-                        </>
-                      ) : (
-                        "Authorize Admin Portal"
-                      )}
-                    </button>
-                  </form>
+              {!adminToken || !adminUser ? (
+                /* Redirecting state */
+                <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-gray-100 shadow-md text-center space-y-4">
+                  <Loader2 className="w-10 h-10 animate-spin text-[#0f4c81] mx-auto" />
+                  <h3 className="text-lg font-extrabold text-gray-900">Securing Session Context...</h3>
+                  <p className="text-xs text-gray-500">
+                    Verifying secure administrator JWT access token. Redirecting to login portal...
+                  </p>
                 </div>
               ) : (
                 /* Authenticated Dashboard */
@@ -1822,11 +2066,13 @@ export default function App() {
                     <div>
                       {/* Admin Identity header */}
                       <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-[#0f4c81] flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-lg bg-[#0f4c81] flex items-center justify-center flex-shrink-0">
                           <span className="text-white font-black text-sm">A</span>
                         </div>
-                        <div>
-                          <span className="text-sm font-black text-white block">System Director</span>
+                        <div className="overflow-hidden">
+                          <span className="text-xs font-black text-white block truncate" title={adminUser?.email || "System Director"}>
+                            {adminUser?.email || "System Director"}
+                          </span>
                           <span className="text-[10px] text-emerald-400 font-bold tracking-wider uppercase block">● ONLINE CONTEXT</span>
                         </div>
                       </div>

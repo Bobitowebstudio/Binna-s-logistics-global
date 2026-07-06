@@ -4,6 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>
+    <script>
+      // Gracefully capture and silence benign WebSocket or Vite HMR errors before any module loads
+      (function() {
+        const isWsError = function(str) {
+          if (!str) return false;
+          const s = String(str).toLowerCase();
+          return s.includes("websocket") || s.includes("web socket") || s.includes("hmr") || s.includes("closed without opened");
+        };
+
+        window.addEventListener("unhandledrejection", function(event) {
+          const reason = event.reason ? (event.reason.message || String(event.reason)) : "";
+          if (isWsError(reason)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+
+        window.addEventListener("error", function(event) {
+          const msg = event.message || "";
+          if (isWsError(msg)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

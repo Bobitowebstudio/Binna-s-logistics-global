@@ -67,6 +67,58 @@ function addLog(action: string, details: string, user: string = "Admin") {
 
 // --- API ROUTES ---
 
+// Expose public Supabase configuration dynamically for the frontend client
+app.get("/api/config", (req, res) => {
+  return res.json({
+    supabaseUrl: process.env.SUPABASE_URL || "https://albmkxloaqhkkhszvrrd.supabase.co",
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || "",
+  });
+});
+
+// Middleware to verify Supabase JWT token and restrict email
+async function authenticateAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Missing or invalid authorization header" });
+  }
+
+  const token = authHeader.substring(7); // Remove "Bearer "
+
+  // Fallback support if Supabase keys aren't set up on the server
+  if (!supabase) {
+    if (token === "binnas-admin-token-2026") {
+      return next();
+    }
+    return res.status(401).json({ error: "Supabase service client is not configured on the backend" });
+  }
+
+  try {
+    // Call Supabase Auth to verify the active JWT session and get user info
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error || !user) {
+      // Gracefully check if they used the legacy fallback token instead
+      if (token === "binnas-admin-token-2026") {
+        return next();
+      }
+      return res.status(401).json({ error: "Invalid, expired, or unauthorized session token" });
+    }
+
+    // Verify user is the strictly authorized administrator email
+    if (user.email !== "admin@binnaslogisticsglobal.com.ng") {
+      addLog("Unauthorized Admin Access Prevented", `Denying access to ${user.email}`, "System Security");
+      return res.status(403).json({ error: "Access Denied: You are not authorized to view the administrator panel." });
+    }
+
+    // Attach user to request
+    (req as any).user = user;
+    next();
+  } catch (err: any) {
+    console.error("Authentication middleware error:", err);
+    return res.status(401).json({ error: "Authentication system verification failed" });
+  }
+}
+
 // Authenticate Admin
 app.post("/api/auth/login", (req, res) => {
   const { password } = req.body;
@@ -80,13 +132,7 @@ app.post("/api/auth/login", (req, res) => {
 });
 
 // Fetch full database (Admin only)
-app.get("/api/db", async (req, res) => {
-  // Simple header authorization check for safety
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.get("/api/db", authenticateAdmin, async (req, res) => {
   const db = getDB();
 
   // If Supabase is configured, dynamically fetch the latest orders and merge them
@@ -138,12 +184,7 @@ app.get("/api/content", (req, res) => {
 });
 
 // Update specific content sections (Admin only)
-app.post("/api/content/update", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/content/update", authenticateAdmin, (req, res) => {
   const { section, data } = req.body;
   if (!section || !data) {
     return res.status(400).json({ error: "Missing section or data in update request" });
@@ -163,12 +204,7 @@ app.post("/api/content/update", (req, res) => {
 });
 
 // Manage news (Admin only)
-app.post("/api/news", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/news", authenticateAdmin, (req, res) => {
   const db = getDB();
   const newsItem = req.body;
 
@@ -197,12 +233,7 @@ app.post("/api/news", (req, res) => {
   return res.json({ success: true, news: db.news });
 });
 
-app.delete("/api/news/:id", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.delete("/api/news/:id", authenticateAdmin, (req, res) => {
   const { id } = req.params;
   const db = getDB();
   db.news = db.news || [];
@@ -215,16 +246,11 @@ app.delete("/api/news/:id", (req, res) => {
     return res.json({ success: true });
   }
 
-  return res.status(444).json({ error: "News article not found" });
+  return res.status(404).json({ error: "News article not found" });
 });
 
 // Manage announcements (Admin only)
-app.post("/api/announcements", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/announcements", authenticateAdmin, (req, res) => {
   const db = getDB();
   const { announcements } = req.body;
 
@@ -297,12 +323,7 @@ app.post("/api/submissions", async (req, res) => {
 });
 
 // Manage submission status (Admin only)
-app.post("/api/submissions/status", async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/submissions/status", authenticateAdmin, async (req, res) => {
   const { id, status } = req.body;
   if (!id || !status) {
     return res.status(400).json({ error: "Missing submission ID or status" });
@@ -343,12 +364,7 @@ app.post("/api/submissions/status", async (req, res) => {
 });
 
 // Media Uploader: Accepts base64 image or url
-app.post("/api/media/upload", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/media/upload", authenticateAdmin, (req, res) => {
   const { name, base64, url } = req.body;
 
   if (url) {
@@ -386,9 +402,27 @@ app.post("/api/media/upload", (req, res) => {
 });
 
 // Database Backup / Download (Admin only)
-app.get("/api/backup/download", (req, res) => {
-  const token = req.query.token;
-  if (token !== "binnas-admin-token-2026") {
+app.get("/api/backup/download", async (req, res) => {
+  const token = req.query.token as string;
+  if (!token) {
+    return res.status(401).send("Unauthorized: Missing backup token");
+  }
+
+  let authorized = false;
+  if (token === "binnas-admin-token-2026") {
+    authorized = true;
+  } else if (supabase) {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (user && user.email === "admin@binnaslogisticsglobal.com.ng") {
+        authorized = true;
+      }
+    } catch (e) {
+      console.error("Backup token verification failed:", e);
+    }
+  }
+
+  if (!authorized) {
     return res.status(403).send("Unauthorized backup request");
   }
 
@@ -398,12 +432,7 @@ app.get("/api/backup/download", (req, res) => {
 });
 
 // Database Restore / Upload (Admin only)
-app.post("/api/backup/restore", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/backup/restore", authenticateAdmin, (req, res) => {
   const { backupData } = req.body;
   if (!backupData || typeof backupData !== "object") {
     return res.status(400).json({ error: "Invalid backup data content provided" });
@@ -420,12 +449,7 @@ app.post("/api/backup/restore", (req, res) => {
 });
 
 // Reset Database to Default (Admin only)
-app.post("/api/backup/reset", (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader !== "Bearer binnas-admin-token-2026") {
-    return res.status(403).json({ error: "Unauthorized access" });
-  }
-
+app.post("/api/backup/reset", authenticateAdmin, (req, res) => {
   try {
     // Delete local DB and reload
     if (fs.existsSync(DB_PATH)) {
