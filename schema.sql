@@ -27,23 +27,22 @@ FOR INSERT
 TO public 
 WITH CHECK (true);
 
--- Policy B: Prevent anonymous/unauthenticated users from reading or altering order rows.
--- Note: In our current setup, server-side operations using the Service Role Key bypass RLS automatically.
--- For standard authenticated admins or managers who view via client connections, they can select rows.
-CREATE POLICY "Allow authenticated users to read orders"
+-- Policy B: Prevent standard authenticated users or anonymous public visitors from accessing order rows.
+-- Restrict SELECT, UPDATE, and DELETE operations strictly to the authorized system administrator's email address.
+CREATE POLICY "Allow authenticated admin to read orders"
 ON orders
 FOR SELECT
 TO authenticated
-USING (true);
+USING (auth.jwt() ->> 'email' = 'admin@binnaslogisticsglobal.com.ng');
 
-CREATE POLICY "Allow authenticated users to update orders"
+CREATE POLICY "Allow authenticated admin to update orders"
 ON orders
 FOR UPDATE
 TO authenticated
-USING (true);
+USING (auth.jwt() ->> 'email' = 'admin@binnaslogisticsglobal.com.ng');
 
-CREATE POLICY "Allow authenticated users to delete orders"
+CREATE POLICY "Allow authenticated admin to delete orders"
 ON orders
 FOR DELETE
 TO authenticated
-USING (true);
+USING (auth.jwt() ->> 'email' = 'admin@binnaslogisticsglobal.com.ng');

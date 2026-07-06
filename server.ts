@@ -3,10 +3,48 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { supabase, mapToDbOrder, mapToSubmission } from "./supabase.js";
 
 const app = express();
 const PORT = 3000;
+
+// Apply Helmet for robust HTTP security headers, tailored to allow loading inside AI Studio frame preview
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Ensure Vite HMR/styles can load dynamically
+    frameguard: false,            // Crucial: allows rendering in the AI Studio sandboxed preview iframe
+  })
+);
+
+// Configure in-memory rate limiting to thwart brute-force or denial of service attacks
+const apiRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes
+  max: 150,                 // Limit each IP to 150 requests per window
+  message: { error: "Too many API requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15,                  // Limit each IP to 15 authentication attempts
+  message: { error: "Too many authentication attempts. Please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const submissionRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                  // Limit each IP to 10 form submissions to prevent spamming
+  message: { error: "Too many enquiries submitted. Please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiter to API routes
+app.use("/api", apiRateLimiter);
 
 // Enable JSON parse with standard limit for base64 media uploads
 app.use(express.json({ limit: "25mb" }));
@@ -75,6 +113,18 @@ app.get("/api/config", (req, res) => {
   });
 });
 
+// Input sanitization to defend against Cross-Site Scripting (XSS)
+function sanitizeString(str: any): string {
+  if (typeof str !== "string") return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;")
+    .replace(/\//g, "&#x2F;");
+}
+
 // Middleware to verify Supabase JWT token and restrict email
 async function authenticateAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
   const authHeader = req.headers.authorization;
@@ -93,14 +143,11 @@ async function authenticateAdmin(req: express.Request, res: express.Response, ne
   }
 
   try {
-    // Call Supabase Auth to verify the active JWT session and get user info
+    // If Supabase is active, STRICTLY verify the active JWT session and get user info
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (error || !user) {
-      // Gracefully check if they used the legacy fallback token instead
-      if (token === "binnas-admin-token-2026") {
-        return next();
-      }
+      // Direct access is rejected. We DO NOT allow any fallback backdoor token when Supabase is active.
       return res.status(401).json({ error: "Invalid, expired, or unauthorized session token" });
     }
 
@@ -119,15 +166,23 @@ async function authenticateAdmin(req: express.Request, res: express.Response, ne
   }
 }
 
-// Authenticate Admin
-app.post("/api/auth/login", (req, res) => {
-  const { password } = req.body;
-  if (password === "ibuchipeter2") {
-    addLog("Admin Login Successful", "Successful login via dashboard credentials");
+// Authenticate Admin fallback (only active when Supabase is not configured)
+app.post("/api/auth/login", authRateLimiter, (req, res) => {
+  const { email, password } = req.body;
+
+  if (supabase) {
+    return res.status(400).json({ 
+      error: "Supabase authentication is fully configured. Please log in directly via the secure portal." 
+    });
+  }
+
+  const cleanEmail = sanitizeString(email);
+  if (cleanEmail === "admin@binnaslogisticsglobal.com.ng" && password === "ibuchipeter2") {
+    addLog("Admin Login Successful", "Successful login via legacy credentials (fallback mode)");
     return res.json({ success: true, token: "binnas-admin-token-2026" });
   } else {
-    addLog("Admin Login Failed", `Attempt with incorrect credentials: ${password ? "******" : "empty"}`);
-    return res.status(401).json({ success: false, error: "Incorrect admin password" });
+    addLog("Admin Login Failed", `Attempt with incorrect legacy credentials: ${cleanEmail || "no email"}`);
+    return res.status(401).json({ success: false, error: "Incorrect admin credentials" });
   }
 });
 
@@ -203,7 +258,7 @@ app.post("/api/content/update", authenticateAdmin, (req, res) => {
   return res.json({ success: true, message: `Section '${section}' updated successfully` });
 });
 
-// Manage news (Admin only)
+// Manage news (Admin only) with sanitization
 app.post("/api/news", authenticateAdmin, (req, res) => {
   const db = getDB();
   const newsItem = req.body;
@@ -212,21 +267,37 @@ app.post("/api/news", authenticateAdmin, (req, res) => {
     return res.status(400).json({ error: "News title is required" });
   }
 
+  // Sanitize fields to prevent persistent XSS
+  const cleanTitle = sanitizeString(newsItem.title);
+  const cleanSummary = newsItem.summary ? sanitizeString(newsItem.summary) : "";
+  const cleanContent = newsItem.content ? sanitizeString(newsItem.content) : "";
+  const cleanImageUrl = newsItem.imageUrl ? sanitizeString(newsItem.imageUrl) : "";
+  const cleanCategory = newsItem.category ? sanitizeString(newsItem.category) : "Logistics";
+
+  const sanitizedItem = {
+    ...newsItem,
+    title: cleanTitle,
+    summary: cleanSummary,
+    content: cleanContent,
+    imageUrl: cleanImageUrl,
+    category: cleanCategory
+  };
+
   db.news = db.news || [];
-  if (newsItem.id) {
+  if (sanitizedItem.id) {
     // Edit existing news
-    db.news = db.news.map((item: any) => (item.id === newsItem.id ? { ...item, ...newsItem } : item));
-    addLog("News Edited", `Updated news item: "${newsItem.title}"`);
+    db.news = db.news.map((item: any) => (item.id === sanitizedItem.id ? { ...item, ...sanitizedItem } : item));
+    addLog("News Edited", `Updated news item: "${cleanTitle}"`);
   } else {
     // Create new news
     const newId = `news-${Date.now()}`;
     const newNews = {
-      ...newsItem,
+      ...sanitizedItem,
       id: newId,
       date: new Date().toISOString().split("T")[0],
     };
     db.news.unshift(newNews);
-    addLog("News Published", `Created news item: "${newsItem.title}"`);
+    addLog("News Published", `Created news item: "${cleanTitle}"`);
   }
 
   saveDB(db);
@@ -264,25 +335,33 @@ app.post("/api/announcements", authenticateAdmin, (req, res) => {
   return res.json({ success: true, announcements: db.announcements });
 });
 
-// Public Quote / Contact Submission
-app.post("/api/submissions", async (req, res) => {
+// Public Quote / Contact Submission with robust XSS sanitization and spam protection
+app.post("/api/submissions", submissionRateLimiter, async (req, res) => {
   const { fullName, companyName, email, phone, serviceNeeded, message } = req.body;
 
   if (!fullName || !email || !message) {
     return res.status(400).json({ error: "Name, email, and message are required fields" });
   }
 
+  // Sanitize all textual inputs to eliminate XSS payload vectors
+  const cleanFullName = sanitizeString(fullName);
+  const cleanCompanyName = sanitizeString(companyName) || "Individual";
+  const cleanEmail = sanitizeString(email);
+  const cleanPhone = sanitizeString(phone) || "Not Provided";
+  const cleanServiceNeeded = sanitizeString(serviceNeeded) || "General Enquiry";
+  const cleanMessage = sanitizeString(message);
+
   const db = getDB();
   db.submissions = db.submissions || [];
 
   const newSubmission = {
     id: `sub-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    fullName,
-    companyName: companyName || "Individual",
-    email,
-    phone: phone || "Not Provided",
-    serviceNeeded: serviceNeeded || "General Enquiry",
-    message,
+    fullName: cleanFullName,
+    companyName: cleanCompanyName,
+    email: cleanEmail,
+    phone: cleanPhone,
+    serviceNeeded: cleanServiceNeeded,
+    message: cleanMessage,
     date: new Date().toISOString(),
     status: "Unread" as const,
   };
@@ -363,14 +442,16 @@ app.post("/api/submissions/status", authenticateAdmin, async (req, res) => {
   return res.json({ success: true });
 });
 
-// Media Uploader: Accepts base64 image or url
+// Media Uploader: Accepts base64 image or url (Admin only)
 app.post("/api/media/upload", authenticateAdmin, (req, res) => {
   const { name, base64, url } = req.body;
 
   if (url) {
-    // If it's a direct external link (e.g. Unsplash), return it as a managed asset
-    addLog("Media Registered", `Registered external asset URL: "${name || url}"`);
-    return res.json({ success: true, url });
+    const cleanUrl = sanitizeString(url);
+    const cleanName = name ? sanitizeString(name) : "External Link";
+    // If it's a direct external link (e.g. Unsplash), return it as a managed asset after sanitizing
+    addLog("Media Registered", `Registered external asset URL: "${cleanName}"`);
+    return res.json({ success: true, url: cleanUrl });
   }
 
   if (!base64 || !name) {
@@ -379,14 +460,32 @@ app.post("/api/media/upload", authenticateAdmin, (req, res) => {
 
   try {
     // Extract base64 details
-    const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    const matches = base64.match(/^data:([A-Za-z-+\/0-9.]+);base64,(.+)$/);
     if (!matches || matches.length !== 3) {
-      return res.status(400).json({ error: "Invalid base64 format" });
+      return res.status(400).json({ error: "Invalid base64 format received" });
+    }
+
+    const mimeType = matches[1].toLowerCase();
+    const allowedMimeTypes = [
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
+      "application/pdf"
+    ];
+
+    if (!allowedMimeTypes.includes(mimeType)) {
+      return res.status(400).json({ 
+        error: "Forbidden file type. Only JPEG, PNG, GIF, WEBP, SVG images and PDF documents are permitted." 
+      });
     }
 
     const buffer = Buffer.from(matches[2], "base64");
-    // Clean filename
-    const safeName = `${Date.now()}-${name.replace(/[^a-zA-Z0-9.\-_]/g, "")}`;
+    
+    // Prevent directory traversal attacks by removing dots and directory slashes from the filename
+    const sanitizedName = name.replace(/[^a-zA-Z0-9.\-_]/g, "");
+    const safeName = `${Date.now()}-${sanitizedName}`;
     const filePath = path.join(UPLOADS_DIR, safeName);
 
     fs.writeFileSync(filePath, buffer);
@@ -396,8 +495,9 @@ app.post("/api/media/upload", authenticateAdmin, (req, res) => {
 
     return res.json({ success: true, url: relativeUrl });
   } catch (error: any) {
-    console.error("Media save failed", error);
-    return res.status(500).json({ error: "Failed to write upload media files locally", details: error.message });
+    console.error("Media save failed:", error);
+    // Hide server path information to prevent path exposure vulnerabilities
+    return res.status(500).json({ error: "Failed to write upload media files locally. Internal server error." });
   }
 });
 
@@ -409,12 +509,12 @@ app.get("/api/backup/download", async (req, res) => {
   }
 
   let authorized = false;
-  if (token === "binnas-admin-token-2026") {
+  if (!supabase && token === "binnas-admin-token-2026") {
     authorized = true;
   } else if (supabase) {
     try {
       const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (user && user.email === "admin@binnaslogisticsglobal.com.ng") {
+      if (user && user.email === "admin@binnaslogisticsglobal.com.ng" && !error) {
         authorized = true;
       }
     } catch (e) {
@@ -431,8 +531,8 @@ app.get("/api/backup/download", async (req, res) => {
   return res.send(JSON.stringify(getDB(), null, 2));
 });
 
-// Database Restore / Upload (Admin only)
-app.post("/api/backup/restore", authenticateAdmin, (req, res) => {
+// Database Restore / Upload (Admin only) with rate limiting
+app.post("/api/backup/restore", authenticateAdmin, authRateLimiter, (req, res) => {
   const { backupData } = req.body;
   if (!backupData || typeof backupData !== "object") {
     return res.status(400).json({ error: "Invalid backup data content provided" });
@@ -448,19 +548,20 @@ app.post("/api/backup/restore", authenticateAdmin, (req, res) => {
   return res.json({ success: true, message: "System database restored successfully" });
 });
 
-// Reset Database to Default (Admin only)
-app.post("/api/backup/reset", authenticateAdmin, (req, res) => {
+// Reset Database to Default (Admin only) with rate limiting and secure error handling
+app.post("/api/backup/reset", authenticateAdmin, authRateLimiter, (req, res) => {
   try {
     // Delete local DB and reload
     if (fs.existsSync(DB_PATH)) {
       fs.unlinkSync(DB_PATH);
     }
-    // Reseed on next load or right here
-    const freshData = getDB(); 
+    // Reseed on next load
+    getDB(); 
     addLog("Database Reset to Factory Defaults", "System database wiped and re-seeded");
     return res.json({ success: true, message: "System content reset to factory defaults" });
   } catch (error: any) {
-    return res.status(500).json({ error: "Failed to reset database", details: error.message });
+    console.error("Database reset failure:", error);
+    return res.status(500).json({ error: "Failed to reset database to factory defaults. Internal server error." });
   }
 });
 

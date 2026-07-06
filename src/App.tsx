@@ -47,6 +47,7 @@ import { createClient } from "@supabase/supabase-js";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import SubpageHeroSlider from "./components/SubpageHeroSlider";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { WebsiteDatabase, Submission, NewsItem, Announcement, ServiceCard } from "./types";
 
 export default function App() {
@@ -2045,10 +2046,19 @@ export default function App() {
 
         {/* ==================== 7. ADMIN DASHBOARD ==================== */}
         {currentTab === "admin" && (
-          <div className="py-12 bg-gray-100 min-h-[700px]" id="admin-page-view">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-              
-              {!adminToken || !adminUser ? (
+          <ProtectedRoute
+            isAuthenticated={!!adminToken}
+            userEmail={adminUser?.email || null}
+            loading={authLoading}
+            onRedirect={() => {
+              setCurrentTab("admin-login");
+              window.location.hash = "admin-login";
+            }}
+          >
+            <div className="py-12 bg-gray-100 min-h-[700px]" id="admin-page-view">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                
+                {!adminToken || !adminUser ? (
                 /* Redirecting state */
                 <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-gray-100 shadow-md text-center space-y-4">
                   <Loader2 className="w-10 h-10 animate-spin text-[#0f4c81] mx-auto" />
@@ -2930,6 +2940,7 @@ export default function App() {
 
             </div>
           </div>
+          </ProtectedRoute>
         )}
       </main>
 
