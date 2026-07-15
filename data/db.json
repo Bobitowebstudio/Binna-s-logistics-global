@@ -216,18 +216,80 @@
   ],
   "submissions": [
     {
-      "id": "sub-default-1",
-      "fullName": "Chinedu Okafor",
-      "companyName": "Okafor Electronics",
-      "email": "chinedu@okafor-elec.com",
-      "phone": "+234 803 111 2222",
-      "serviceNeeded": "Product Sourcing",
-      "message": "Hello, I am looking to import 500 units of smartphone chargers and high-quality powerbanks. Can you assist in sourcing a reliable factory in Yiwu/Guangzhou and consolidatimg them for shipping?",
-      "date": "2026-07-02T14:32:00Z",
+      "id": "sub-1784151636403-498",
+      "fullName": "Viashima ThankGod Aondowase ",
+      "companyName": "Individual",
+      "email": "doncolazzythankgod@gmail.com",
+      "phone": "7048859139",
+      "serviceNeeded": "Air Freight",
+      "message": "I want to know how much you ship from china to Nigeria,Abuja ",
+      "date": "2026-07-15T21:40:36.403+00:00",
       "status": "Unread"
+    },
+    {
+      "id": "sub-1784126068787-554",
+      "fullName": "Marvy",
+      "companyName": "Individual",
+      "email": "marvellousakerele48@gmail.com",
+      "phone": "+2349019616427",
+      "serviceNeeded": "Air Freight",
+      "message": "Hi Binna&#x27;s Logistics! I would like to request assistance regarding your &quot;Air Freight&quot; services mentioned on the website.",
+      "date": "2026-07-15T14:34:28.787+00:00",
+      "status": "Unread"
+    },
+    {
+      "id": "sub-1784045943918-230",
+      "fullName": "Chineke ",
+      "companyName": "Sjshsjs",
+      "email": "dexxyboss9@gmail.com",
+      "phone": "0787967979184",
+      "serviceNeeded": "Air Freight",
+      "message": "Finished man",
+      "date": "2026-07-14T16:19:03.918+00:00",
+      "status": "Read"
+    },
+    {
+      "id": "sub-1783931502662-241",
+      "fullName": "ISHAQ UMI-SALAM ",
+      "companyName": "Individual",
+      "email": "umisalmasiaka@gmail.com",
+      "phone": "+2348115797593",
+      "serviceNeeded": "Sea Freight",
+      "message": "Hello, I want to ship a top-loading washing machine from Alibaba to Nigeria. Please send me your warehouse address in China, your sea freight rate, estimated delivery time, and whether customs clearance is included.",
+      "date": "2026-07-13T08:31:42.662+00:00",
+      "status": "Read"
+    },
+    {
+      "id": "sub-1783334222248-392",
+      "fullName": "Onuh Ibuchi",
+      "companyName": "Individual",
+      "email": "onuhibuchi3@gmail.com",
+      "phone": "08110630961",
+      "serviceNeeded": "Air Freight",
+      "message": "bobito web studio testing this project",
+      "date": "2026-07-06T10:37:02.248+00:00",
+      "status": "Read"
+    },
+    {
+      "id": "sub-1783333768178-629",
+      "fullName": "Onuh Ibuchi",
+      "companyName": "Individual",
+      "email": "onuhibuchi@gmail.com",
+      "phone": "+2348110630961",
+      "serviceNeeded": "Air Freight",
+      "message": "Hi Binna's Logistics! I am interested in your \"Customs Assistance\" services.",
+      "date": "2026-07-06T10:29:28.178+00:00",
+      "status": "Read"
     }
   ],
   "logs": [
+    {
+      "id": "log-1784152442832-952",
+      "action": "Admin Login Successful",
+      "details": "Successful login via legacy credentials (fallback mode)",
+      "timestamp": "2026-07-15T21:54:02.832Z",
+      "user": "Admin"
+    },
     {
       "id": "log-1783093375132-724",
       "action": "Admin Login Successful",
@@ -242,5 +304,62 @@
       "timestamp": "2026-07-03T08:27:00.000Z",
       "user": "System Admin"
     }
-  ]
+  ],
+  "companySettings": {
+    "companyInfo": {
+      "name": "Binna's Logistics Global",
+      "tagline": "Reliable Shipping & Sourcing Between China and Nigeria",
+      "description": "Binna's Logistics provides reliable shipping and sourcing solutions between China and Nigeria. We help businesses and individuals simplify international trade through efficient freight services, professional sourcing support, and dependable delivery solutions.",
+      "logo": "",
+      "favicon": ""
+    },
+    "contactInfo": {
+      "phoneNigeria": "08160850963",
+      "phoneChina": "",
+      "whatsApp": "2348160850963",
+      "emailBusiness": "binnaschina@gmail.com",
+      "emailSupport": "support@binnaslogisticsglobal.com.ng"
+    },
+    "officeLocations": {
+      "nigeria": {
+        "name": "Lagos Office",
+        "address": "limousine Park, International Airport, Lagos, Nigeria",
+        "mapsLink": "https://maps.google.com/maps?q=limousine%20Park,%20International%20Airport,%20Lagos,%20Nigeria&t=&z=14&ie=UTF8&iwloc=&output=embed"
+      },
+      "china": {
+        "name": "China",
+        "address": "",
+        "mapsLink": ""
+      }
+    },
+    "socialMedia": {
+      "facebook": "https://facebook.com/binnaslogistics",
+      "instagram": "https://instagram.com/binnaslogistics",
+      "tiktok": "https://tiktok.com/@binnaslogistics"
+    },
+    "whatsAppSettings": {
+      "whatsAppNumber": "2348160850963",
+      "defaultMessage": "Hello Binna's Logistics, I would like to make an enquiry about your services.",
+      "quoteMessage": "Hello Binna's Logistics, I would like to request a shipping and sourcing quote.",
+      "importMessage": "Hello Binna's Logistics, I want to make an enquiry about importing goods from China.",
+      "exportMessage": "Hello Binna's Logistics, I would like to make an enquiry about exporting goods.",
+      "airFreightMessage": "Hello Binna's Logistics, I am interested in your Air Freight services.",
+      "seaFreightMessage": "Hello Binna's Logistics, I am interested in your Sea Freight services.",
+      "trackingMessage": "Hello Binna's Logistics, I want to track my package status."
+    },
+    "businessHours": {
+      "monday": "08:00 AM - 06:00 PM",
+      "tuesday": "08:00 AM - 06:00 PM",
+      "wednesday": "08:00 AM - 06:00 PM",
+      "thursday": "08:00 AM - 06:00 PM",
+      "friday": "08:00 AM - 06:00 PM",
+      "saturday": "09:00 AM - 04:00 PM",
+      "sunday": "Closed"
+    },
+    "announcementBar": {
+      "text": "",
+      "enabled": false,
+      "color": "#0f4c81"
+    }
+  }
 }

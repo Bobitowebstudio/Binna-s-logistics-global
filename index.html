@@ -11,7 +11,44 @@
         const isWsError = function(str) {
           if (!str) return false;
           const s = String(str).toLowerCase();
-          return s.includes("websocket") || s.includes("web socket") || s.includes("hmr") || s.includes("closed without opened");
+          return s.includes("websocket") || 
+                 s.includes("web socket") || 
+                 s.includes("hmr") || 
+                 s.includes("closed without opened");
+        };
+
+        // Intercept console.error to prevent platform logging overlays for benign WebSocket failures
+        const originalConsoleError = console.error;
+        console.error = function(...args) {
+          const msg = args.map(function(arg) {
+            try {
+              if (!arg) return "";
+              return arg.message || arg.stack || String(arg);
+            } catch (e) {
+              return "";
+            }
+          }).join(" ");
+          if (isWsError(msg)) {
+            return;
+          }
+          originalConsoleError.apply(console, args);
+        };
+
+        // Intercept console.warn to prevent platform logging overlays for benign WebSocket warnings
+        const originalConsoleWarn = console.warn;
+        console.warn = function(...args) {
+          const msg = args.map(function(arg) {
+            try {
+              if (!arg) return "";
+              return arg.message || String(arg);
+            } catch (e) {
+              return "";
+            }
+          }).join(" ");
+          if (isWsError(msg)) {
+            return;
+          }
+          originalConsoleWarn.apply(console, args);
         };
 
         window.addEventListener("unhandledrejection", function(event) {

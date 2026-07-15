@@ -127,8 +127,8 @@ function getDB() {
             sunday: "Closed"
           },
           announcementBar: {
-            text: "Normal Operations during Chinese National Holidays. Our warehouse is active!",
-            enabled: true,
+            text: "",
+            enabled: false,
             color: "#0f4c81"
           }
         };

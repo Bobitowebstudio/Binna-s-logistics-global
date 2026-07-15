@@ -7,11 +7,47 @@ import './index.css';
 if (typeof window !== "undefined") {
   const isWsError = (str: string) => {
     if (!str) return false;
+    const s = str.toLowerCase();
     return (
-      str.toLowerCase().includes("websocket") ||
-      str.toLowerCase().includes("web socket") ||
-      str.toLowerCase().includes("hmr")
+      s.includes("websocket") ||
+      s.includes("web socket") ||
+      s.includes("hmr") ||
+      s.includes("closed without opened")
     );
+  };
+
+  // Intercept console.error to prevent platform logging overlays for benign WebSocket failures
+  const originalConsoleError = console.error;
+  console.error = function(...args: any[]) {
+    const msg = args.map((arg) => {
+      try {
+        if (!arg) return "";
+        return arg.message || arg.stack || String(arg);
+      } catch (e) {
+        return "";
+      }
+    }).join(" ");
+    if (isWsError(msg)) {
+      return;
+    }
+    originalConsoleError.apply(console, args);
+  };
+
+  // Intercept console.warn to prevent platform logging overlays for benign WebSocket warnings
+  const originalConsoleWarn = console.warn;
+  console.warn = function(...args: any[]) {
+    const msg = args.map((arg) => {
+      try {
+        if (!arg) return "";
+        return arg.message || String(arg);
+      } catch (e) {
+        return "";
+      }
+    }).join(" ");
+    if (isWsError(msg)) {
+      return;
+    }
+    originalConsoleWarn.apply(console, args);
   };
 
   window.addEventListener("unhandledrejection", (event) => {
