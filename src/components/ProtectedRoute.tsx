@@ -16,7 +16,7 @@ export default function ProtectedRoute({
   onRedirect,
   children,
 }: ProtectedRouteProps) {
-  const isAuthorizedAdmin = isAuthenticated && userEmail === "admin@binnaslogisticsglobal.com.ng";
+  const isAuthorizedAdmin = isAuthenticated && userEmail === "info@binnaslogisticsglobal.com.ng";
 
   useEffect(() => {
     if (!loading && !isAuthorizedAdmin) {

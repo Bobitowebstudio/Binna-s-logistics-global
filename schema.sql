@@ -33,16 +33,16 @@ CREATE POLICY "Allow authenticated admin to read orders"
 ON orders
 FOR SELECT
 TO authenticated
-USING (auth.jwt() ->> 'email' = 'admin@binnaslogisticsglobal.com.ng');
+USING (auth.jwt() ->> 'email' = 'info@binnaslogisticsglobal.com.ng');
 
 CREATE POLICY "Allow authenticated admin to update orders"
 ON orders
 FOR UPDATE
 TO authenticated
-USING (auth.jwt() ->> 'email' = 'admin@binnaslogisticsglobal.com.ng');
+USING (auth.jwt() ->> 'email' = 'info@binnaslogisticsglobal.com.ng');
 
 CREATE POLICY "Allow authenticated admin to delete orders"
 ON orders
 FOR DELETE
 TO authenticated
-USING (auth.jwt() ->> 'email' = 'admin@binnaslogisticsglobal.com.ng');
+USING (auth.jwt() ->> 'email' = 'info@binnaslogisticsglobal.com.ng');

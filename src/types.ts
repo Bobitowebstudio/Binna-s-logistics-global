@@ -138,6 +138,64 @@ export interface AuditLog {
   user: string;
 }
 
+export interface CompanySettings {
+  companyInfo: {
+    name: string;
+    tagline: string;
+    description: string;
+    logo: string;
+    favicon: string;
+  };
+  contactInfo: {
+    phoneNigeria: string;
+    phoneChina: string;
+    whatsApp: string;
+    emailBusiness: string;
+    emailSupport: string;
+  };
+  officeLocations: {
+    nigeria: {
+      name: string;
+      address: string;
+      mapsLink: string;
+    };
+    china: {
+      name: string;
+      address: string;
+      mapsLink: string;
+    };
+  };
+  socialMedia: {
+    facebook: string;
+    instagram: string;
+    tiktok: string;
+  };
+  whatsAppSettings: {
+    whatsAppNumber: string;
+    defaultMessage: string;
+    quoteMessage: string;
+    importMessage: string;
+    exportMessage: string;
+    airFreightMessage: string;
+    seaFreightMessage: string;
+    trackingMessage: string;
+  };
+  businessHours: {
+    monday: string;
+    tuesday: string;
+    wednesday: string;
+    thursday: string;
+    friday: string;
+    saturday: string;
+    sunday: string;
+  };
+  announcementBar: {
+    text: string;
+    enabled: boolean;
+    color: string;
+  };
+}
+
 export interface WebsiteDatabase {
   homepage: HomepageContent;
   about: AboutContent;
@@ -150,4 +208,5 @@ export interface WebsiteDatabase {
   announcements: Announcement[];
   submissions: Submission[];
   logs: AuditLog[];
+  companySettings?: CompanySettings;
 }

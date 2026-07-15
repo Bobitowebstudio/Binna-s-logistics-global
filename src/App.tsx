@@ -41,7 +41,9 @@ import {
   Check,
   Send,
   Loader2,
-  Bell
+  Bell,
+  Printer,
+  X
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import Header from "./components/Header";
@@ -60,19 +62,26 @@ export default function App() {
   const [activeSlide, setActiveSlide] = useState<number>(0);
 
   // Admin Authentication & Session
-  const [adminToken, setAdminToken] = useState<string | null>(
-    localStorage.getItem("binnas_admin_token")
-  );
+  const [adminToken, setAdminToken] = useState<string | null>(() => {
+    return localStorage.getItem("binnas_admin_token") || sessionStorage.getItem("binnas_admin_token");
+  });
+  const [adminUser, setAdminUser] = useState<any>(() => {
+    const token = localStorage.getItem("binnas_admin_token") || sessionStorage.getItem("binnas_admin_token");
+    if (token) {
+      return { email: "info@binnaslogisticsglobal.com.ng", id: "admin-user" };
+    }
+    return null;
+  });
   const [adminEmail, setAdminEmail] = useState<string>("");
   const [adminPassword, setAdminPassword] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [rememberMe, setRememberMe] = useState<boolean>(true);
   const [adminLoginError, setAdminLoginError] = useState<string | null>(null);
   const [adminLoggingIn, setAdminLoggingIn] = useState<boolean>(false);
 
   // Supabase dynamic client & session state
   const [supabase, setSupabase] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState<boolean>(true);
-  const [adminUser, setAdminUser] = useState<any>(null);
 
   // Admin Dashboard Tabs: 'overview', 'content', 'services', 'news', 'announcements', 'enquiries', 'media', 'seo', 'backup'
   const [adminTab, setAdminTab] = useState<string>("overview");
@@ -103,6 +112,18 @@ export default function App() {
   const [calcWeight, setCalcWeight] = useState<string>("10");
   const [calcResult, setCalcResult] = useState<{ cost: number; days: string } | null>({ cost: 85, days: "2 - 3 Days" });
 
+  // Invoice/Receipt Generator Modal State
+  const [activeInquiryForInvoice, setActiveInquiryForInvoice] = useState<Submission | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<{ description: string; quantity: number; unitPrice: number }[]>([
+    { description: "Air Freight Shipping (Cargo)", quantity: 1, unitPrice: 450 },
+    { description: "Customs Clearance & Documentation", quantity: 1, unitPrice: 120 },
+  ]);
+  const [invoiceId, setInvoiceId] = useState<string>("INV-2026-001");
+  const [invoiceDate, setInvoiceDate] = useState<string>(new Date().toISOString().substring(0, 10));
+  const [invoiceDueDate, setInvoiceDueDate] = useState<string>(new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10));
+  const [invoiceCurrency, setInvoiceCurrency] = useState<string>("USD");
+  const [showInvoiceEmailView, setShowInvoiceEmailView] = useState<boolean>(false);
+
   // --- Admin Editing Forms State ---
   const [editHomepage, setEditHomepage] = useState<any>(null);
   const [editAbout, setEditAbout] = useState<any>(null);
@@ -110,6 +131,7 @@ export default function App() {
   const [editMission, setEditMission] = useState<any>(null);
   const [editContact, setEditContact] = useState<any>(null);
   const [editSeo, setEditSeo] = useState<any>(null);
+  const [editCompanySettings, setEditCompanySettings] = useState<any>(null);
 
   // Edit single news state
   const [editingNews, setEditingNews] = useState<Partial<NewsItem> | null>(null);
@@ -134,7 +156,6 @@ export default function App() {
   // Load public Supabase config & initialize Client-side Auth
   useEffect(() => {
     let active = true;
-    let authSubscription: any = null;
 
     const initSupabase = async () => {
       try {
@@ -147,62 +168,9 @@ export default function App() {
         if (config.supabaseUrl && config.supabaseAnonKey) {
           const client = createClient(config.supabaseUrl, config.supabaseAnonKey);
           setSupabase(client);
-
-          // Restore existing login session automatically
-          const { data: { session } } = await client.auth.getSession();
-          if (session && active) {
-            const user = session.user;
-            if (user.email === "admin@binnaslogisticsglobal.com.ng") {
-              setAdminUser(user);
-              setAdminToken(session.access_token);
-              localStorage.setItem("binnas_admin_token", session.access_token);
-            } else {
-              await client.auth.signOut();
-              localStorage.removeItem("binnas_admin_token");
-              setAdminToken(null);
-              setAdminUser(null);
-            }
-          }
-
-          // Handle auth state changes in real-time
-          const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
-            if (!active) return;
-            if (session) {
-              const user = session.user;
-              if (user.email === "admin@binnaslogisticsglobal.com.ng") {
-                setAdminUser(user);
-                setAdminToken(session.access_token);
-                localStorage.setItem("binnas_admin_token", session.access_token);
-              } else {
-                await client.auth.signOut();
-                localStorage.removeItem("binnas_admin_token");
-                setAdminToken(null);
-                setAdminUser(null);
-              }
-            } else {
-              localStorage.removeItem("binnas_admin_token");
-              setAdminToken(null);
-              setAdminUser(null);
-            }
-          });
-
-          authSubscription = subscription;
-        } else {
-          // If Supabase keys are not set up yet, fallback to legacy check
-          const legacyToken = localStorage.getItem("binnas_admin_token");
-          if (legacyToken === "binnas-admin-token-2026" && active) {
-            setAdminToken(legacyToken);
-            setAdminUser({ email: "admin@binnaslogisticsglobal.com.ng", id: "legacy" });
-          }
         }
       } catch (err) {
         console.error("Supabase dynamic initialization failed:", err);
-        // Graceful fallback to legacy check
-        const legacyToken = localStorage.getItem("binnas_admin_token");
-        if (legacyToken === "binnas-admin-token-2026" && active) {
-          setAdminToken(legacyToken);
-          setAdminUser({ email: "admin@binnaslogisticsglobal.com.ng", id: "legacy" });
-        }
       } finally {
         if (active) {
           setAuthLoading(false);
@@ -214,44 +182,54 @@ export default function App() {
 
     return () => {
       active = false;
-      if (authSubscription) {
-        authSubscription.unsubscribe();
-      }
     };
   }, []);
 
   // Protect Admin dashboard routes and manage direct URL navigation
   useEffect(() => {
     const handleNavigationCheck = () => {
+      const pathname = window.location.pathname;
       const hash = window.location.hash.replace("#", "");
-      if (hash === "admin") {
+
+      // Normalize check: Admin login page is active if pathname is /admin/login OR hash is admin/login or admin-login
+      if (pathname === "/admin/login" || pathname === "/admin/login/" || hash === "admin/login" || hash === "admin-login") {
         if (authLoading) return; // Wait for session load
         if (!adminToken || !adminUser) {
-          // Prevent direct unauthorized access to /#admin
           setCurrentTab("admin-login");
-          window.location.hash = "admin-login";
+          if (window.location.hash !== "#admin/login") {
+            window.location.hash = "admin/login";
+          }
         } else {
           setCurrentTab("admin");
+          if (window.location.hash !== "#admin") {
+            window.location.hash = "admin";
+          }
         }
-      } else if (hash === "admin-login") {
-        if (authLoading) return;
-        if (adminToken && adminUser) {
-          // If already authenticated, bypass login and redirect to admin dashboard
-          setCurrentTab("admin");
-          window.location.hash = "admin";
+      } else {
+        // Pathname/hash is not /admin/login
+        if (hash === "admin") {
+          if (authLoading) return;
+          if (!adminToken || !adminUser) {
+            setCurrentTab("admin-login");
+            window.location.hash = "admin/login";
+          } else {
+            setCurrentTab("admin");
+          }
+        } else if (hash && ["home", "about", "services", "vision", "mission", "contact"].includes(hash)) {
+          setCurrentTab(hash);
         } else {
-          setCurrentTab("admin-login");
+          setCurrentTab("home");
         }
-      } else if (hash && ["home", "about", "services", "vision", "mission", "contact"].includes(hash)) {
-        setCurrentTab(hash);
-      } else if (!hash) {
-        setCurrentTab("home");
       }
     };
 
     handleNavigationCheck();
     window.addEventListener("hashchange", handleNavigationCheck);
-    return () => window.removeEventListener("hashchange", handleNavigationCheck);
+    window.addEventListener("popstate", handleNavigationCheck);
+    return () => {
+      window.removeEventListener("hashchange", handleNavigationCheck);
+      window.removeEventListener("popstate", handleNavigationCheck);
+    };
   }, [adminToken, adminUser, authLoading]);
 
   // Fetch DB function
@@ -280,6 +258,12 @@ export default function App() {
     fetchDB();
   }, [adminToken]);
 
+  useEffect(() => {
+    if (db?.companySettings && !editCompanySettings) {
+      setEditCompanySettings(JSON.parse(JSON.stringify(db.companySettings)));
+    }
+  }, [db?.companySettings, editCompanySettings]);
+
   const fetchAdminData = async () => {
     if (!adminToken) return;
     try {
@@ -304,6 +288,7 @@ export default function App() {
       if (fullDb.mission) setEditMission(JSON.parse(JSON.stringify(fullDb.mission)));
       if (fullDb.contact) setEditContact(JSON.parse(JSON.stringify(fullDb.contact)));
       if (fullDb.seo) setEditSeo(JSON.parse(JSON.stringify(fullDb.seo)));
+      if (fullDb.companySettings) setEditCompanySettings(JSON.parse(JSON.stringify(fullDb.companySettings)));
       if (fullDb.announcements) setEditingAnnouncements(JSON.parse(JSON.stringify(fullDb.announcements)));
     } catch (e) {
       console.error("Failed to load full admin data context", e);
@@ -334,59 +319,45 @@ export default function App() {
     setAdminLoggingIn(true);
     setAdminLoginError(null);
 
-    if (!supabase) {
-      // Fallback behavior if Supabase keys aren't configured yet
-      if (adminEmail === "admin@binnaslogisticsglobal.com.ng" && adminPassword === "ibuchipeter2") {
-        const fallbackToken = "binnas-admin-token-2026";
-        localStorage.setItem("binnas_admin_token", fallbackToken);
-        setAdminToken(fallbackToken);
-        setAdminUser({ email: "admin@binnaslogisticsglobal.com.ng", id: "fallback-admin" });
-        addToast("Welcome back! Legacy Admin Portal authorized.", "success");
-        setCurrentTab("admin");
-        window.location.hash = "admin";
-        setAdminLoggingIn(false);
-        return;
-      }
-      setAdminLoginError("Supabase is not initialized. Please verify backend environment configuration.");
-      setAdminLoggingIn(false);
-      return;
-    }
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
-        password: adminPassword,
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: adminEmail,
+          password: adminPassword,
+        }),
       });
 
-      if (error) {
-        setAdminLoginError(error.message);
-        addToast(`Login failed: ${error.message}`, "error");
-        return;
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Incorrect admin credentials");
       }
 
-      if (data.session) {
-        const user = data.session.user;
-        if (user.email === "admin@binnaslogisticsglobal.com.ng") {
-          localStorage.setItem("binnas_admin_token", data.session.access_token);
-          setAdminToken(data.session.access_token);
-          setAdminUser(user);
-          setAdminPassword("");
-          setAdminEmail("");
-          addToast("Secure administrator session successfully verified.", "success");
-          setCurrentTab("admin");
-          window.location.hash = "admin";
+      if (data.success && data.token) {
+        if (rememberMe) {
+          localStorage.setItem("binnas_admin_token", data.token);
+          localStorage.removeItem("binnas_admin_token_session");
         } else {
-          // If another user logs in, deny access and sign out immediately as per rule 4
-          setAdminLoginError("Access Denied: You are not authorized to view the administrator panel.");
-          addToast("Access Denied: Unauthorized account detected.", "error");
-          await supabase.auth.signOut();
+          sessionStorage.setItem("binnas_admin_token", data.token);
           localStorage.removeItem("binnas_admin_token");
-          setAdminToken(null);
-          setAdminUser(null);
         }
+        setAdminToken(data.token);
+        setAdminUser(data.user);
+        setAdminPassword("");
+        setAdminEmail("");
+        addToast("Secure administrator session successfully verified.", "success");
+        setCurrentTab("admin");
+        window.location.hash = "admin";
+      } else {
+        throw new Error("Authentication failed");
       }
     } catch (err: any) {
       setAdminLoginError(err.message || "An error occurred during authentication.");
+      addToast(err.message || "An error occurred during authentication.", "error");
     } finally {
       setAdminLoggingIn(false);
     }
@@ -394,18 +365,12 @@ export default function App() {
 
   const handleLogout = async () => {
     localStorage.removeItem("binnas_admin_token");
+    sessionStorage.removeItem("binnas_admin_token");
     setAdminToken(null);
     setAdminUser(null);
-    if (supabase) {
-      try {
-        await supabase.auth.signOut();
-      } catch (err) {
-        console.error("Supabase signout exception:", err);
-      }
-    }
     addToast("Logged out of Admin Portal", "info");
     setCurrentTab("admin-login");
-    window.location.hash = "admin-login";
+    window.location.hash = "admin/login";
   };
 
   // Sourcing cargo cost tool calculation
@@ -713,10 +678,19 @@ export default function App() {
 
   if (loading && !db) {
     return (
-      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
-        <Loader2 className="w-16 h-16 text-[#0f4c81] animate-spin mb-4" />
-        <h3 className="text-lg font-bold text-gray-900">Connecting to Binna's Logistics Database...</h3>
-        <p className="text-sm text-gray-500 mt-1">Establishing cargo pipelines and news updates</p>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 space-y-6">
+        <div className="text-center">
+          <span className="text-3xl sm:text-4xl font-black tracking-tight leading-none block select-none mb-2 animate-pulse">
+            <span className="text-[#0f172a]">Binna's</span>{" "}
+            <span className="text-[#0f4c81]">Logistics</span>{" "}
+            <span className="text-[#dc2626]">Global</span>
+          </span>
+          <p className="text-[10px] text-gray-400 font-extrabold tracking-widest uppercase">Connecting to Secure Infrastructure</p>
+        </div>
+        <div className="flex flex-col items-center justify-center space-y-3">
+          <Loader2 className="w-10 h-10 text-[#0f4c81] animate-spin" />
+          <h3 className="text-xs font-bold text-gray-500">Establishing Database Pipeline...</h3>
+        </div>
       </div>
     );
   }
@@ -741,6 +715,29 @@ export default function App() {
   const submissions = (db as any)?.submissions || [];
   const logs = (db as any)?.logs || [];
 
+  // Dynamic Company Settings Extraction
+  const companySettings = db?.companySettings;
+  const companyName = companySettings?.companyInfo?.name || "Binna's Logistics Global";
+  const phoneNigeria = companySettings?.contactInfo?.phoneNigeria || "08160850963";
+  const phoneChina = companySettings?.contactInfo?.phoneChina || "";
+  const emailBusiness = companySettings?.contactInfo?.emailBusiness || "info@binnaslogisticsglobal.com.ng";
+  const emailSupport = companySettings?.contactInfo?.emailSupport || "support@binnaslogisticsglobal.com.ng";
+  const whatsAppNumber = companySettings?.whatsAppSettings?.whatsAppNumber || "2348160850963";
+
+  const addressNigeria = companySettings?.officeLocations?.nigeria?.address || "Limousine Park, International Airport, Lagos, Nigeria / International Airport, Abuja, Nigeria";
+  const nameNigeria = companySettings?.officeLocations?.nigeria?.name || "Nigeria Office";
+  const mapNigeria = companySettings?.officeLocations?.nigeria?.mapsLink || "https://maps.google.com";
+
+  const addressChina = companySettings?.officeLocations?.china?.address || "";
+  const nameChina = companySettings?.officeLocations?.china?.name || "China";
+  const mapChina = companySettings?.officeLocations?.china?.mapsLink || "";
+
+  // WhatsApp Messages
+  const defaultMsg = companySettings?.whatsAppSettings?.defaultMessage || "Hello Binna's Logistics, I would like to make an enquiry about your services.";
+  const quoteMsg = companySettings?.whatsAppSettings?.quoteMessage || "Hello Binna's Logistics, I would like to request a shipping quote.";
+  const importMsg = companySettings?.whatsAppSettings?.importMessage || "Hello, I want to make an enquiry about importing items from China.";
+  const trackingMsg = companySettings?.whatsAppSettings?.trackingMessage || "Hello, I would like to track my package status.";
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col font-sans" id="applet-root">
       
@@ -764,7 +761,17 @@ export default function App() {
         ))}
       </div>
 
-      <Header currentTab={currentTab} setCurrentTab={setCurrentTab} announcements={announcements} />
+      {/* Homepage Announcement Bar from Company Settings */}
+      {db?.companySettings?.announcementBar?.enabled && (
+        <div 
+          className="w-full text-white text-center py-2.5 px-4 font-bold text-xs tracking-wider transition-all duration-200 shadow-sm"
+          style={{ backgroundColor: db.companySettings.announcementBar.color || "#0f4c81" }}
+        >
+          {db.companySettings.announcementBar.text}
+        </div>
+      )}
+
+      <Header currentTab={currentTab} setCurrentTab={setCurrentTab} announcements={announcements} companySettings={db?.companySettings} />
 
       {/* Main Content Render */}
       <main className="flex-grow w-full">
@@ -1162,7 +1169,7 @@ export default function App() {
                         Request Quote
                       </button>
                       <a
-                        href="https://wa.me/2348160850963"
+                        href={`https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(quoteMsg)}`}
                         target="_blank"
                         rel="noreferrer"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-3 rounded-lg transition-all uppercase tracking-wider text-center flex items-center justify-center gap-1.5 cursor-pointer text-decoration-none"
@@ -1257,20 +1264,20 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                         <span className="text-2xl">🇳🇬</span>
-                        <h4 className="font-extrabold text-gray-900 text-sm">Lagos Office (Nigeria)</h4>
+                        <h4 className="font-extrabold text-gray-900 text-sm">Lagos Office</h4>
                       </div>
                       <div className="space-y-3 text-xs text-gray-600">
                         <div className="flex items-start gap-2.5">
                           <MapPin size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
-                          <span>limousine Park, International Airport, Lagos, Nigeria</span>
+                          <span>{addressNigeria.split("/")[0]?.trim() || addressNigeria}</span>
                         </div>
                         <div className="flex items-center gap-2.5">
                           <Phone size={15} className="text-red-500 flex-shrink-0" />
-                          <span>Phone: 08160850963</span>
+                          <span>Phone: {phoneNigeria}</span>
                         </div>
                         <div className="flex items-center gap-2.5">
                           <span className="text-emerald-500 font-bold flex-shrink-0">WhatsApp:</span>
-                          <span>+2348160850963</span>
+                          <span>+{whatsAppNumber}</span>
                         </div>
                       </div>
                     </div>
@@ -1284,20 +1291,20 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                         <span className="text-2xl">🇳🇬</span>
-                        <h4 className="font-extrabold text-gray-900 text-sm">Abuja Office (Nigeria)</h4>
+                        <h4 className="font-extrabold text-gray-900 text-sm">Abuja Office</h4>
                       </div>
                       <div className="space-y-3 text-xs text-gray-600">
                         <div className="flex items-start gap-2.5">
                           <MapPin size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
-                          <span>International Airport, Abuja, Nigeria</span>
+                          <span>{addressNigeria.split("/")[1]?.trim() || "International Airport, Abuja, Nigeria"}</span>
                         </div>
                         <div className="flex items-center gap-2.5">
                           <Phone size={15} className="text-red-500 flex-shrink-0" />
-                          <span>Phone: 08160850963</span>
+                          <span>Phone: {phoneNigeria}</span>
                         </div>
                         <div className="flex items-center gap-2.5">
                           <span className="text-emerald-500 font-bold flex-shrink-0">WhatsApp:</span>
-                          <span>+2348160850963</span>
+                          <span>+{whatsAppNumber}</span>
                         </div>
                       </div>
                     </div>
@@ -1311,20 +1318,22 @@ export default function App() {
                     <div className="space-y-4">
                       <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                         <span className="text-2xl">🇨🇳</span>
-                        <h4 className="font-extrabold text-gray-900 text-sm">Guangzhou (China)</h4>
+                        <h4 className="font-extrabold text-gray-900 text-sm">{nameChina}</h4>
                       </div>
                       <div className="space-y-3 text-xs text-gray-600">
                         <div className="flex items-start gap-2.5">
                           <MapPin size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
-                          <span>Room 408, Jincheng Building, Sanyuanli, Baiyun District, Guangzhou, China</span>
+                          <span>{addressChina || "China"}</span>
                         </div>
-                        <div className="flex items-center gap-2.5">
-                          <Phone size={15} className="text-red-500 flex-shrink-0" />
-                          <span>China Line: +86 138 1234 5678</span>
-                        </div>
+                        {phoneChina && (
+                          <div className="flex items-center gap-2.5">
+                            <Phone size={15} className="text-red-500 flex-shrink-0" />
+                            <span>China Line: {phoneChina}</span>
+                          </div>
+                        )}
                         <div className="flex items-center gap-2.5 text-gray-500">
                           <span className="font-bold text-red-500">Email:</span>
-                          <span>binnaschina@gmail.com</span>
+                          <span>{emailBusiness}</span>
                         </div>
                       </div>
                     </div>
@@ -1792,20 +1801,20 @@ export default function App() {
                   <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs space-y-4">
                     <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                       <span className="text-xl">🇳🇬</span>
-                      <h4 className="font-extrabold text-gray-900">Lagos Head Office (Nigeria)</h4>
+                      <h4 className="font-extrabold text-gray-900">{nameNigeria.includes("Lagos") ? nameNigeria : "Lagos Head Office"}</h4>
                     </div>
                     <div className="space-y-3 text-xs text-gray-600">
                       <div className="flex items-start gap-2.5">
                         <MapPin size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
-                        <span>limousine Park, International Airport, Lagos, Nigeria</span>
+                        <span>{addressNigeria.split("/")[0]?.trim() || addressNigeria}</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <Phone size={15} className="text-red-500 flex-shrink-0" />
-                        <span>Phone: 08160850963</span>
+                        <span>Phone: {phoneNigeria}</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <span className="text-emerald-500 font-bold flex-shrink-0">WhatsApp:</span>
-                        <span>+2348160850963</span>
+                        <span>+{whatsAppNumber}</span>
                       </div>
                     </div>
                   </div>
@@ -1814,20 +1823,20 @@ export default function App() {
                   <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs space-y-4">
                     <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                       <span className="text-xl">🇳🇬</span>
-                      <h4 className="font-extrabold text-gray-900">Abuja Office (Nigeria)</h4>
+                      <h4 className="font-extrabold text-gray-900">{nameNigeria.includes("Abuja") ? nameNigeria : "Abuja Office"}</h4>
                     </div>
                     <div className="space-y-3 text-xs text-gray-600">
                       <div className="flex items-start gap-2.5">
                         <MapPin size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
-                        <span>International Airport, Abuja, Nigeria</span>
+                        <span>{addressNigeria.split("/")[1]?.trim() || "International Airport, Abuja, Nigeria"}</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <Phone size={15} className="text-red-500 flex-shrink-0" />
-                        <span>Phone: 08160850963</span>
+                        <span>Phone: {phoneNigeria}</span>
                       </div>
                       <div className="flex items-center gap-2.5">
                         <span className="text-emerald-500 font-bold flex-shrink-0">WhatsApp:</span>
-                        <span>+2348160850963</span>
+                        <span>+{whatsAppNumber}</span>
                       </div>
                     </div>
                   </div>
@@ -1836,17 +1845,19 @@ export default function App() {
                   <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-xs space-y-4">
                     <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
                       <span className="text-xl">🇨🇳</span>
-                      <h4 className="font-extrabold text-gray-900">Guangzhou Receiving Warehouse (China)</h4>
+                      <h4 className="font-extrabold text-gray-900">{nameChina}</h4>
                     </div>
                     <div className="space-y-3 text-xs text-gray-600">
                       <div className="flex items-start gap-2.5">
                         <MapPin size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
-                        <span>Room 408, Jincheng Building, Sanyuanli, Baiyun District, Guangzhou, China</span>
+                        <span>{addressChina || "China"}</span>
                       </div>
-                      <div className="flex items-center gap-2.5">
-                        <Phone size={15} className="text-red-500 flex-shrink-0" />
-                        <span>China Line: +86 138 1234 5678</span>
-                      </div>
+                      {phoneChina && (
+                        <div className="flex items-center gap-2.5">
+                          <Phone size={15} className="text-red-500 flex-shrink-0" />
+                          <span>China Line: {phoneChina}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1895,7 +1906,7 @@ export default function App() {
                         <iframe
                           id="lagos-map-iframe"
                           title="Binna's Logistics Lagos Office Map"
-                          src="https://maps.google.com/maps?q=limousine%20Park,%20International%20Airport,%20Lagos,%20Nigeria&t=&z=14&ie=UTF8&iwloc=&output=embed"
+                          src={`https://maps.google.com/maps?q=${encodeURIComponent(addressNigeria.split("/")[0]?.trim() || addressNigeria)}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
                           width="100%"
                           height="100%"
                           style={{ border: 0 }}
@@ -1907,7 +1918,7 @@ export default function App() {
                         <iframe
                           id="abuja-map-iframe"
                           title="Binna's Logistics Abuja Office Map"
-                          src="https://maps.google.com/maps?q=International%20Airport,%20Abuja,%20Nigeria&t=&z=14&ie=UTF8&iwloc=&output=embed"
+                          src={`https://maps.google.com/maps?q=${encodeURIComponent(addressNigeria.split("/")[1]?.trim() || "International Airport, Abuja, Nigeria")}&t=&z=14&ie=UTF8&iwloc=&output=embed`}
                           width="100%"
                           height="100%"
                           style={{ border: 0 }}
@@ -1933,15 +1944,21 @@ export default function App() {
             <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-3xl border border-gray-150 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#0f4c81] to-[#dc2626]"></div>
               
-              <div className="text-center">
-                <div className="mx-auto h-16 w-16 rounded-2xl bg-slate-50 flex items-center justify-center text-[#0f4c81] border border-gray-100 shadow-sm">
-                  <Lock className="h-8 w-8 text-[#0f4c81]" />
+              <div className="text-center space-y-4">
+                <div className="bg-slate-50 px-4 py-3 rounded-2xl inline-block border border-gray-100 shadow-sm">
+                  <span className="text-xl sm:text-2xl font-black tracking-tight leading-none block select-none">
+                    <span className="text-[#0f172a]">Binna's</span>{" "}
+                    <span className="text-[#0f4c81]">Logistics</span>{" "}
+                    <span className="text-[#dc2626]">Global</span>
+                  </span>
                 </div>
-                <h2 className="mt-6 text-3xl font-black text-gray-900 tracking-tight">
-                  Secure Admin Access
-                </h2>
-                <p className="mt-2 text-xs text-gray-500 max-w-xs mx-auto">
-                  Sign in to manage Binna's Logistics Global platform, database systems, and content settings.
+                <div className="border-b border-gray-100 pb-2">
+                  <h2 className="text-sm font-black text-gray-500 tracking-widest uppercase">
+                    Secure Admin Access
+                  </h2>
+                </div>
+                <p className="text-xs text-gray-500 max-w-xs mx-auto">
+                  Sign in to manage platform settings, databases, and client enquiries.
                 </p>
               </div>
 
@@ -1969,7 +1986,7 @@ export default function App() {
                         id="admin-email-field"
                         type="email"
                         required
-                        placeholder="admin@binnaslogisticsglobal.com.ng"
+                        placeholder="info@binnaslogisticsglobal.com.ng"
                         value={adminEmail}
                         onChange={(e) => setAdminEmail(e.target.value)}
                         className="block w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0f4c81] focus:border-transparent font-medium text-gray-800 transition-all duration-150"
@@ -1997,7 +2014,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                        className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors focus:outline-none cursor-pointer"
                       >
                         {showPassword ? (
                           <EyeOff className="h-4.5 w-4.5" />
@@ -2007,21 +2024,20 @@ export default function App() {
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {!supabase && (
-                  <div className="bg-amber-50 rounded-xl p-4 text-xs text-amber-900 border border-amber-200/50 leading-relaxed">
-                    <p className="font-extrabold flex items-center gap-1 mb-1">
-                      <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                      Database Integration Pending
-                    </p>
-                    Your platform environment is loading or keys are not fully synchronized. You can log in using system seed credentials:
-                    <div className="mt-2 font-mono bg-amber-100/70 p-1.5 rounded text-[11px] text-amber-950">
-                      User: admin@binnaslogisticsglobal.com.ng<br/>
-                      Pass: ibuchipeter2
-                    </div>
+                  <div className="flex items-center">
+                    <input
+                      id="remember-me-checkbox"
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 text-[#0f4c81] focus:ring-[#0f4c81] border-gray-300 rounded cursor-pointer"
+                    />
+                    <label htmlFor="remember-me-checkbox" className="ml-2 block text-xs text-gray-700 font-semibold select-none cursor-pointer">
+                      Remember Me
+                    </label>
                   </div>
-                )}
+                </div>
 
                 <div>
                   <button
@@ -2075,15 +2091,21 @@ export default function App() {
                   <aside className="lg:col-span-3 bg-slate-900 text-gray-300 border-r border-gray-200 flex flex-col justify-between">
                     <div>
                       {/* Admin Identity header */}
-                      <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-[#0f4c81] flex items-center justify-center flex-shrink-0">
-                          <span className="text-white font-black text-sm">A</span>
-                        </div>
-                        <div className="overflow-hidden">
-                          <span className="text-xs font-black text-white block truncate" title={adminUser?.email || "System Director"}>
-                            {adminUser?.email || "System Director"}
+                      <div className="p-6 border-b border-slate-800 space-y-4">
+                        <div className="bg-white/95 px-3 py-2 rounded-xl flex items-center justify-center shadow-sm">
+                          <span className="text-sm font-black tracking-tight leading-none select-none">
+                            <span className="text-[#0f172a]">Binna's</span>{" "}
+                            <span className="text-[#0f4c81]">Logistics</span>{" "}
+                            <span className="text-[#dc2626]">Global</span>
                           </span>
-                          <span className="text-[10px] text-emerald-400 font-bold tracking-wider uppercase block">● ONLINE CONTEXT</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="overflow-hidden">
+                            <span className="text-xs font-black text-white block truncate" title={adminUser?.email || "System Director"}>
+                              {adminUser?.email || "System Director"}
+                            </span>
+                            <span className="text-[10px] text-emerald-400 font-bold tracking-wider uppercase block">● ONLINE CONTEXT</span>
+                          </div>
                         </div>
                       </div>
 
@@ -2098,6 +2120,7 @@ export default function App() {
                           { id: "enquiries", label: "Client Enquiries", icon: <MessageSquare size={16} /> },
                           { id: "media", label: "Media Manager", icon: <Upload size={16} /> },
                           { id: "seo", label: "SEO Meta Settings", icon: <Globe size={16} /> },
+                          { id: "settings", label: "Company Settings", icon: <Settings size={16} /> },
                           { id: "backup", label: "Backup & Restore", icon: <Database size={16} /> },
                         ].map((btn) => (
                           <button
@@ -2723,13 +2746,29 @@ export default function App() {
                                   "{sub.message}"
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500">
-                                  <div className="flex items-center gap-1.5">
-                                    <Mail size={13} className="text-[#0f4c81]" /> Email: <span className="text-gray-900 font-bold">{sub.email}</span>
+                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between pt-3 border-t border-gray-150 gap-4">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <Mail size={13} className="text-[#0f4c81] flex-shrink-0" /> Email: <span className="text-gray-900 font-bold break-all">{sub.email}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <Phone size={13} className="text-[#0f4c81] flex-shrink-0" /> Phone: <span className="text-gray-900 font-bold">{sub.phone || "Not provided"}</span>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-1.5">
-                                    <Phone size={13} className="text-[#0f4c81]" /> Phone: <span className="text-gray-900 font-bold">{sub.phone}</span>
-                                  </div>
+                                  <button
+                                    onClick={() => {
+                                      setActiveInquiryForInvoice(sub);
+                                      setInvoiceId(`INV-${new Date().getFullYear()}-${sub.id.substring(0, 4).toUpperCase()}`);
+                                      setInvoiceItems([
+                                        { description: `${sub.serviceNeeded} Transit Logistics Service`, quantity: 1, unitPrice: 480 },
+                                        { description: "Customs Clearing & Sourcing Admin Handling", quantity: 1, unitPrice: 150 },
+                                      ]);
+                                      setShowInvoiceEmailView(false);
+                                    }}
+                                    className="bg-[#0f4c81] hover:bg-blue-800 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap self-start sm:self-center"
+                                  >
+                                    <span>🧾 Generate Invoice / Receipt</span>
+                                  </button>
                                 </div>
                               </div>
                             ))
@@ -2876,6 +2915,600 @@ export default function App() {
                       </div>
                     )}
 
+                    {/* ================= ADMIN TAB: COMPANY SETTINGS ================= */}
+                    {adminTab === "settings" && editCompanySettings && (
+                      <div className="space-y-8" id="admin-settings-panel">
+                        <div className="bg-blue-50 text-blue-950 p-4 rounded-xl text-xs leading-relaxed border border-blue-200/50">
+                          Configure your company profile, contacts, office locations, social media, custom WhatsApp message strings, and active homepage announcement bar settings. All changes apply dynamically across the entire website.
+                        </div>
+
+                        <div className="space-y-6">
+                          {/* 1. Company Information */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              Company Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Company Name</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.companyInfo?.name || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    companyInfo: { ...editCompanySettings.companyInfo, name: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Company Tagline</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.companyInfo?.tagline || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    companyInfo: { ...editCompanySettings.companyInfo, tagline: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Company Description</label>
+                                <textarea
+                                  rows={3}
+                                  value={editCompanySettings.companyInfo?.description || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    companyInfo: { ...editCompanySettings.companyInfo, description: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Company Logo (Image URL)</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.companyInfo?.logo || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    companyInfo: { ...editCompanySettings.companyInfo, logo: e.target.value }
+                                  })}
+                                  placeholder="Leave blank for default icon brand"
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Company Favicon (Image URL)</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.companyInfo?.favicon || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    companyInfo: { ...editCompanySettings.companyInfo, favicon: e.target.value }
+                                  })}
+                                  placeholder="Favicon image link"
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 2. Contact Information */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              Contact Information
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Nigeria Phone Number</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.contactInfo?.phoneNigeria || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    contactInfo: { ...editCompanySettings.contactInfo, phoneNigeria: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">China Phone Number (Optional)</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.contactInfo?.phoneChina || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    contactInfo: { ...editCompanySettings.contactInfo, phoneChina: e.target.value }
+                                  })}
+                                  placeholder="e.g. +86..."
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">WhatsApp Number</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.contactInfo?.whatsApp || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    contactInfo: { ...editCompanySettings.contactInfo, whatsApp: e.target.value }
+                                  })}
+                                  placeholder="Numbers only, e.g. 2348160850963"
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Business Email</label>
+                                <input
+                                  type="email"
+                                  value={editCompanySettings.contactInfo?.emailBusiness || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    contactInfo: { ...editCompanySettings.contactInfo, emailBusiness: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Support Email</label>
+                                <input
+                                  type="email"
+                                  value={editCompanySettings.contactInfo?.emailSupport || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    contactInfo: { ...editCompanySettings.contactInfo, emailSupport: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 3. Office Locations */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              Office Locations
+                            </h3>
+                            <div className="space-y-4">
+                              <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-150 space-y-3">
+                                <span className="text-xs font-black text-red-600 uppercase tracking-widest block">🇳🇬 Nigeria Office</span>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Office Name</label>
+                                    <input
+                                      type="text"
+                                      value={editCompanySettings.officeLocations?.nigeria?.name || ""}
+                                      onChange={(e) => setEditCompanySettings({
+                                        ...editCompanySettings,
+                                        officeLocations: {
+                                          ...editCompanySettings.officeLocations,
+                                          nigeria: { ...editCompanySettings.officeLocations?.nigeria, name: e.target.value }
+                                        }
+                                      })}
+                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Full Address</label>
+                                    <input
+                                      type="text"
+                                      value={editCompanySettings.officeLocations?.nigeria?.address || ""}
+                                      onChange={(e) => setEditCompanySettings({
+                                        ...editCompanySettings,
+                                        officeLocations: {
+                                          ...editCompanySettings.officeLocations,
+                                          nigeria: { ...editCompanySettings.officeLocations?.nigeria, address: e.target.value }
+                                        }
+                                      })}
+                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Google Maps Link</label>
+                                    <input
+                                      type="text"
+                                      value={editCompanySettings.officeLocations?.nigeria?.mapsLink || ""}
+                                      onChange={(e) => setEditCompanySettings({
+                                        ...editCompanySettings,
+                                        officeLocations: {
+                                          ...editCompanySettings.officeLocations,
+                                          nigeria: { ...editCompanySettings.officeLocations?.nigeria, mapsLink: e.target.value }
+                                        }
+                                      })}
+                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-gray-50/50 p-4 rounded-xl border border-gray-150 space-y-3">
+                                <span className="text-xs font-black text-red-600 uppercase tracking-widest block">🇨🇳 China Office</span>
+                                <p className="text-[11px] text-gray-500">
+                                  You specified you do not have a physical office address in China. Leave the address field blank to display only <strong>"China"</strong>. If an office address becomes available, enter it here to show it.
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Office Name</label>
+                                    <input
+                                      type="text"
+                                      value={editCompanySettings.officeLocations?.china?.name || ""}
+                                      onChange={(e) => setEditCompanySettings({
+                                        ...editCompanySettings,
+                                        officeLocations: {
+                                          ...editCompanySettings.officeLocations,
+                                          china: { ...editCompanySettings.officeLocations?.china, name: e.target.value }
+                                        }
+                                      })}
+                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs font-bold"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Full Address (Optional / Leave blank for just "China")</label>
+                                    <input
+                                      type="text"
+                                      value={editCompanySettings.officeLocations?.china?.address || ""}
+                                      onChange={(e) => setEditCompanySettings({
+                                        ...editCompanySettings,
+                                        officeLocations: {
+                                          ...editCompanySettings.officeLocations,
+                                          china: { ...editCompanySettings.officeLocations?.china, address: e.target.value }
+                                        }
+                                      })}
+                                      placeholder="Leave blank if no physical office"
+                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs"
+                                    />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase">Google Maps Link (Optional)</label>
+                                    <input
+                                      type="text"
+                                      value={editCompanySettings.officeLocations?.china?.mapsLink || ""}
+                                      onChange={(e) => setEditCompanySettings({
+                                        ...editCompanySettings,
+                                        officeLocations: {
+                                          ...editCompanySettings.officeLocations,
+                                          china: { ...editCompanySettings.officeLocations?.china, mapsLink: e.target.value }
+                                        }
+                                      })}
+                                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 4. Social Media */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              Social Media
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Facebook URL</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.socialMedia?.facebook || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    socialMedia: { ...editCompanySettings.socialMedia, facebook: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Instagram URL</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.socialMedia?.instagram || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    socialMedia: { ...editCompanySettings.socialMedia, instagram: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">TikTok URL</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.socialMedia?.tiktok || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    socialMedia: { ...editCompanySettings.socialMedia, tiktok: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 5. WhatsApp Settings */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              WhatsApp Message Templates
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              Configure target WhatsApp number and predefined template messages for buttons throughout the site. Keep messages URL-friendly (they will be pre-filled inside customer clicks).
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">WhatsApp Number (For links, numbers only e.g. 2348160850963)</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.whatsAppNumber || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, whatsAppNumber: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-bold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Default Contact Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.defaultMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, defaultMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Quote Request Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.quoteMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, quoteMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Import from China Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.importMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, importMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Export Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.exportMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, exportMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Air Freight Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.airFreightMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, airFreightMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Sea Freight Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.seaFreightMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, seaFreightMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Package Tracking Message</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.whatsAppSettings?.trackingMessage || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    whatsAppSettings: { ...editCompanySettings.whatsAppSettings, trackingMessage: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 6. Business Hours */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              Business Hours
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Monday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.monday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, monday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Tuesday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.tuesday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, tuesday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Wednesday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.wednesday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, wednesday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Thursday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.thursday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, thursday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Friday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.friday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, friday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Saturday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.saturday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, saturday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Sunday</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.businessHours?.sunday || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    businessHours: { ...editCompanySettings.businessHours, sunday: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs font-semibold"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 7. Homepage Announcement Bar */}
+                          <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4 shadow-sm">
+                            <h3 className="font-extrabold text-base text-gray-900 border-b border-gray-150 pb-2 flex items-center gap-2">
+                              <span className="w-1.5 h-5 bg-[#0f4c81] rounded-full" />
+                              Homepage Announcement Bar
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Announcement Text</label>
+                                <input
+                                  type="text"
+                                  value={editCompanySettings.announcementBar?.text || ""}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    announcementBar: { ...editCompanySettings.announcementBar, text: e.target.value }
+                                  })}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-lg p-2 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Announcement Color (HEX)</label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="color"
+                                    value={editCompanySettings.announcementBar?.color || "#0f4c81"}
+                                    onChange={(e) => setEditCompanySettings({
+                                      ...editCompanySettings,
+                                      announcementBar: { ...editCompanySettings.announcementBar, color: e.target.value }
+                                    })}
+                                    className="w-8 h-8 rounded cursor-pointer border border-gray-200 p-0"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={editCompanySettings.announcementBar?.color || ""}
+                                    onChange={(e) => setEditCompanySettings({
+                                      ...editCompanySettings,
+                                      announcementBar: { ...editCompanySettings.announcementBar, color: e.target.value }
+                                    })}
+                                    placeholder="#0f4c81"
+                                    className="w-full bg-gray-50 border border-gray-200 rounded-lg p-1.5 text-xs font-mono"
+                                  />
+                                </div>
+                              </div>
+                              <div className="md:col-span-3 flex items-center gap-2.5 pt-2">
+                                <input
+                                  type="checkbox"
+                                  id="announcement-enabled-toggle"
+                                  checked={!!editCompanySettings.announcementBar?.enabled}
+                                  onChange={(e) => setEditCompanySettings({
+                                    ...editCompanySettings,
+                                    announcementBar: { ...editCompanySettings.announcementBar, enabled: e.target.checked }
+                                  })}
+                                  className="w-4 h-4 text-[#0f4c81] focus:ring-[#0f4c81] border-gray-300 rounded cursor-pointer"
+                                />
+                                <label htmlFor="announcement-enabled-toggle" className="text-xs font-bold text-gray-700 cursor-pointer">
+                                  Enable Announcement Bar on Homepage
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 8. Save Settings Button */}
+                          <div className="bg-slate-50 border border-gray-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div>
+                              <h4 className="font-extrabold text-sm text-gray-900">Commit Company Profile Updates</h4>
+                              <p className="text-xs text-gray-500">Save all form values securely. Changes are applied in real-time instantly without re-deploying code.</p>
+                            </div>
+                            <button
+                              onClick={() => handleSaveSection("companySettings", editCompanySettings)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-6 py-3 rounded-xl cursor-pointer transition-all flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <CheckCircle size={14} /> Save Company Settings
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* ================= ADMIN TAB: BACKUP ================= */}
                     {adminTab === "backup" && (
                       <div className="space-y-6" id="admin-backup-panel">
@@ -2944,7 +3577,432 @@ export default function App() {
         )}
       </main>
 
-      <Footer setCurrentTab={setCurrentTab} />
+      {/* ==================== 8. INVOICE & RECEIPT GENERATOR MODAL ==================== */}
+      {activeInquiryForInvoice && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 no-print" id="invoice-generator-modal">
+          {/* Dynamic CSS for beautiful high-fidelity print layouts */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @media print {
+              body {
+                background-color: white !important;
+                color: black !important;
+              }
+              .no-print {
+                display: none !important;
+                height: 0 !important;
+                width: 0 !important;
+                overflow: hidden !important;
+              }
+              #print-invoice-sheet {
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+                padding: 1.5in !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+            }
+          `}} />
+
+          <div className="bg-slate-50 w-full max-w-6xl rounded-3xl shadow-2xl border border-gray-150 overflow-hidden flex flex-col lg:flex-row max-h-[90vh]">
+            {/* Left Panel: Inputs & Configuration */}
+            <div className="lg:w-5/12 bg-white p-6 border-b lg:border-b-0 lg:border-r border-gray-150 overflow-y-auto flex flex-col justify-between max-h-[45vh] lg:max-h-none">
+              <div className="space-y-6">
+                <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 uppercase tracking-wider">Invoice &amp; Receipt Builder</h3>
+                    <p className="text-[10px] text-gray-500 font-bold">Configure client rate sheets and direct email templates</p>
+                  </div>
+                  <button 
+                    onClick={() => setActiveInquiryForInvoice(null)}
+                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Client Info Context */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-gray-150 space-y-2">
+                  <span className="text-[9px] font-black text-[#0f4c81] uppercase tracking-wider block">Client Context</span>
+                  <div className="text-xs space-y-1">
+                    <p className="font-extrabold text-slate-800">{activeInquiryForInvoice.fullName}</p>
+                    <p className="text-gray-500 font-medium">Company: {activeInquiryForInvoice.companyName || "N/A"}</p>
+                    <p className="text-gray-500 font-medium">Service Requested: {activeInquiryForInvoice.serviceNeeded}</p>
+                  </div>
+                </div>
+
+                {/* General Config parameters */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Invoice ID / Reference</label>
+                    <input 
+                      type="text" 
+                      value={invoiceId}
+                      onChange={(e) => setInvoiceId(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#0f4c81]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Currency</label>
+                    <select 
+                      value={invoiceCurrency}
+                      onChange={(e) => setInvoiceCurrency(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#0f4c81]"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="NGN">NGN (₦)</option>
+                      <option value="CNY">CNY (¥)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Invoice Date</label>
+                    <input 
+                      type="date" 
+                      value={invoiceDate}
+                      onChange={(e) => setInvoiceDate(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#0f4c81]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">Due Date</label>
+                    <input 
+                      type="date" 
+                      value={invoiceDueDate}
+                      onChange={(e) => setInvoiceDueDate(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none focus:border-[#0f4c81]"
+                    />
+                  </div>
+                </div>
+
+                {/* Line Items Builder */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Rate Sheet Line Items</span>
+                    <button 
+                      onClick={() => setInvoiceItems([...invoiceItems, { description: "Custom Cargo Handling", quantity: 1, unitPrice: 100 }])}
+                      className="text-[10px] text-[#0f4c81] font-black hover:underline uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={12} /> Add Item
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 max-h-[180px] overflow-y-auto pr-1">
+                    {invoiceItems.map((item, idx) => (
+                      <div key={idx} className="bg-gray-50 p-3 rounded-xl border border-gray-150 space-y-2 relative group">
+                        <button 
+                          onClick={() => {
+                            const updated = [...invoiceItems];
+                            updated.splice(idx, 1);
+                            setInvoiceItems(updated);
+                          }}
+                          className="absolute top-2 right-2 text-gray-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                        <div className="pr-6">
+                          <input 
+                            type="text"
+                            value={item.description}
+                            onChange={(e) => {
+                              const updated = [...invoiceItems];
+                              updated[idx].description = e.target.value;
+                              setInvoiceItems(updated);
+                            }}
+                            placeholder="Item Description"
+                            className="w-full bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs font-semibold mb-2 focus:outline-none focus:border-[#0f4c81]"
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5">Quantity</label>
+                              <input 
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => {
+                                  const updated = [...invoiceItems];
+                                  updated[idx].quantity = parseInt(e.target.value) || 1;
+                                  setInvoiceItems(updated);
+                                }}
+                                className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:border-[#0f4c81]"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[8px] text-gray-400 font-bold uppercase mb-0.5">Unit Price</label>
+                              <input 
+                                type="number"
+                                min="0"
+                                value={item.unitPrice}
+                                onChange={(e) => {
+                                  const updated = [...invoiceItems];
+                                  updated[idx].unitPrice = parseFloat(e.target.value) || 0;
+                                  setInvoiceItems(updated);
+                                }}
+                                className="w-full bg-white border border-gray-200 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:border-[#0f4c81]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Left Panel Footer Options */}
+              <div className="pt-6 border-t border-gray-150 space-y-2 mt-4 p-6 bg-slate-50/50">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setShowInvoiceEmailView(false)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer text-center ${
+                      !showInvoiceEmailView 
+                        ? "bg-slate-900 text-white" 
+                        : "bg-white hover:bg-gray-50 text-slate-800 border border-gray-200"
+                    }`}
+                  >
+                    📄 PDF Invoice Template
+                  </button>
+                  <button
+                    onClick={() => setShowInvoiceEmailView(true)}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer text-center ${
+                      showInvoiceEmailView 
+                        ? "bg-slate-900 text-white" 
+                        : "bg-white hover:bg-gray-50 text-slate-800 border border-gray-200"
+                    }`}
+                  >
+                    ✉️ Email Template
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      window.print();
+                    }}
+                    className="bg-[#0f4c81] hover:bg-blue-800 text-white font-extrabold text-xs py-3.5 rounded-xl transition-all uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm w-full"
+                  >
+                    <Printer size={14} /> Print / Save PDF Document
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Panel: Live Document Preview Sheet */}
+            <div className="lg:w-7/12 bg-slate-100 p-6 sm:p-8 overflow-y-auto flex justify-center items-start max-h-[45vh] lg:max-h-none flex-1">
+              {!showInvoiceEmailView ? (
+                /* Formal Print/PDF Invoice Sheet Layout */
+                <div 
+                  id="print-invoice-sheet"
+                  className="bg-white w-full max-w-[21cm] p-8 sm:p-12 rounded-2xl shadow-xl border border-gray-200 flex flex-col justify-between font-sans leading-relaxed text-gray-800"
+                >
+                  <div className="space-y-8">
+                    {/* Brand Header */}
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-gray-200">
+                      <div>
+                        <span className="text-xl sm:text-2xl font-black tracking-tight leading-none block mb-1">
+                          <span className="text-[#0f172a]">Binna's</span>{" "}
+                          <span className="text-[#0f4c81]">Logistics</span>{" "}
+                          <span className="text-[#dc2626]">Global</span>
+                        </span>
+                        <p className="text-[10px] text-[#0f4c81] font-extrabold tracking-widest uppercase">
+                          Cargo Transit &amp; Freight Clearances
+                        </p>
+                      </div>
+                      <div className="text-left sm:text-right text-xs">
+                        <h2 className="text-base font-black text-slate-900 tracking-wider uppercase mb-1">Formal Invoice</h2>
+                        <p className="text-gray-500 font-mono font-bold">Ref: {invoiceId}</p>
+                      </div>
+                    </div>
+
+                    {/* Addresses */}
+                    <div className="grid grid-cols-2 gap-8 text-xs">
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-black text-[#0f4c81] uppercase tracking-wider block">Logistics Provider:</span>
+                        <div className="space-y-1 font-medium text-gray-600">
+                          <p className="font-extrabold text-slate-900">Binna's Logistics Global</p>
+                          <p>Lagos: Limousine Park, Int'l Airport Rd</p>
+                          <p>Abuja: International Airport Office</p>
+                          <p>China: Baiyun District, Guangzhou</p>
+                          <p>Email: {emailBusiness}</p>
+                          <p>Tel: +{whatsAppNumber}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-black text-[#dc2626] uppercase tracking-wider block">Billed To (Consignee):</span>
+                        <div className="space-y-1 font-medium text-gray-600">
+                          <p className="font-extrabold text-slate-900">{activeInquiryForInvoice.fullName}</p>
+                          {activeInquiryForInvoice.companyName && <p>{activeInquiryForInvoice.companyName}</p>}
+                          <p className="break-all">Email: {activeInquiryForInvoice.email}</p>
+                          {activeInquiryForInvoice.phone && <p>Tel: {activeInquiryForInvoice.phone}</p>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Date details bar */}
+                    <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-150 text-xs text-gray-600 font-bold">
+                      <div>
+                        <span className="text-[9px] text-gray-400 uppercase tracking-wider block">Date Issued</span>
+                        <span className="text-slate-800 font-mono font-black">{new Date(invoiceDate).toLocaleDateString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-gray-400 uppercase tracking-wider block">Due Date</span>
+                        <span className="text-slate-800 font-mono font-black">{new Date(invoiceDueDate).toLocaleDateString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-gray-400 uppercase tracking-wider block">Method</span>
+                        <span className="text-[#0f4c81] uppercase tracking-widest block font-black">Direct Wire</span>
+                      </div>
+                    </div>
+
+                    {/* Items Table */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-gray-500 font-bold">
+                            <th className="py-2.5 uppercase tracking-wider">Transit Details / Service Description</th>
+                            <th className="py-2.5 text-right uppercase tracking-wider w-16">Qty</th>
+                            <th className="py-2.5 text-right uppercase tracking-wider w-24">Unit Rate</th>
+                            <th className="py-2.5 text-right uppercase tracking-wider w-24">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="font-semibold text-slate-700">
+                          {invoiceItems.map((item, i) => (
+                            <tr key={i} className="border-b border-gray-100 hover:bg-gray-50/50">
+                              <td className="py-3 font-bold text-slate-800">{item.description}</td>
+                              <td className="py-3 text-right font-mono">{item.quantity}</td>
+                              <td className="py-3 text-right font-mono">{invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{item.unitPrice.toLocaleString()}</td>
+                              <td className="py-3 text-right font-mono text-slate-900 font-bold">
+                                {invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{(item.quantity * item.unitPrice).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Calculations */}
+                    <div className="flex justify-end pt-4">
+                      <div className="w-64 space-y-2 text-xs">
+                        <div className="flex justify-between font-bold text-gray-500">
+                          <span>Subtotal:</span>
+                          <span className="font-mono text-slate-800">{invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{invoiceItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-gray-500">
+                          <span>VAT / Clearing Levy (7.5%):</span>
+                          <span className="font-mono text-slate-800">{invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{(invoiceItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0) * 0.075).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between pt-2 border-t border-gray-200 text-sm font-black text-slate-900">
+                          <span>Total Due:</span>
+                          <span className="font-mono text-[#0f4c81] text-base">
+                            {invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{(invoiceItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0) * 1.075).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Terms & Stamp */}
+                  <div className="pt-8 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-6 items-end mt-8 text-[10px] text-gray-500">
+                    <div className="space-y-1.5">
+                      <span className="font-bold text-gray-700 uppercase tracking-widest block">Terms &amp; Instructions</span>
+                      <p>All air/sea cargo clearances subject to customs evaluations.</p>
+                      <p>Wire transfers must declare reference: <span className="font-mono font-bold text-[#0f4c81]">{invoiceId}</span></p>
+                    </div>
+
+                    <div className="flex flex-col items-end space-y-3">
+                      {/* Dynamic Receipt Stamp */}
+                      <div className="border-4 border-emerald-500 text-emerald-500 font-black tracking-widest uppercase rounded-lg px-3 py-1 text-xs rotate-[-3deg] inline-block opacity-85 select-none bg-emerald-50/20">
+                        Verified Paid Receipt
+                      </div>
+                      <div className="text-right w-full border-t border-gray-200 pt-2 text-[9px] font-bold text-gray-400">
+                        Binna's Logistics Accounts Authorized
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Formal Email Notification Template format */
+                <div className="bg-white w-full max-w-[600px] rounded-2xl shadow-xl border border-gray-200 overflow-hidden text-sm text-gray-800 flex flex-col justify-between">
+                  <div>
+                    {/* Email Header Banner */}
+                    <div className="bg-[#0f4c81] p-6 text-center text-white space-y-3">
+                      <div className="bg-white px-4 py-2 rounded-xl inline-block shadow-sm">
+                        <span className="text-xl sm:text-2xl font-black tracking-tight leading-none block select-none">
+                          <span className="text-[#0f172a]">Binna's</span>{" "}
+                          <span className="text-[#0f4c81]">Logistics</span>{" "}
+                          <span className="text-[#dc2626]">Global</span>
+                        </span>
+                      </div>
+                      <p className="text-[9px] text-slate-200 font-extrabold tracking-widest uppercase">Cargo Shipping Pipeline Dispatch</p>
+                    </div>
+
+                    {/* Email Body */}
+                    <div className="p-6 sm:p-8 space-y-6">
+                      <div className="space-y-2">
+                        <h3 className="font-black text-slate-900 text-base">Hello {activeInquiryForInvoice.fullName},</h3>
+                        <p className="text-gray-600 leading-relaxed text-xs">
+                          Your shipping quote enquiry regarding <span className="font-bold text-[#0f4c81]">{activeInquiryForInvoice.serviceNeeded}</span> has been processed by our logistics management team. Below is the official cost structure and transit confirmation invoice:
+                        </p>
+                      </div>
+
+                      {/* Summary Block */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-gray-150 space-y-3 text-xs">
+                        <div className="flex justify-between font-bold border-b border-gray-200 pb-1.5 text-gray-400 uppercase tracking-widest text-[8px]">
+                          <span>Cargo Item Description</span>
+                          <span>Total Rate</span>
+                        </div>
+                        {invoiceItems.map((item, idx) => (
+                          <div key={idx} className="flex justify-between font-medium text-gray-700">
+                            <span>{item.description} (x{item.quantity})</span>
+                            <span className="font-mono text-gray-900 font-bold">{invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{(item.quantity * item.unitPrice).toLocaleString()}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between font-black text-slate-900 pt-2 border-t border-gray-200">
+                          <span>TOTAL AMOUNT (incl. VAT):</span>
+                          <span className="font-mono text-[#0f4c81] text-sm">
+                            {invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}{(invoiceItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0) * 1.075).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* CTA button inside Email */}
+                      <div className="text-center pt-2">
+                        <a 
+                          href={`https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(`Hello Binna's Logistics, I would like to make payment for my invoice ${invoiceId} totaling ${invoiceCurrency === "USD" ? "$" : invoiceCurrency === "NGN" ? "₦" : "¥"}${(invoiceItems.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0) * 1.075).toLocaleString()}`)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-6 py-3 rounded-lg inline-block uppercase tracking-wider text-decoration-none shadow-sm transition-all cursor-pointer"
+                        >
+                          💬 Confirm Payment Via WhatsApp
+                        </a>
+                      </div>
+
+                      <div className="text-xs text-gray-500 leading-relaxed border-t border-gray-150 pt-4 space-y-1">
+                        <p className="font-extrabold text-slate-800">Support Desk Context:</p>
+                        <p>Need custom adjustments on tax calculations? Directly reach us at <span className="font-bold text-[#0f4c81]">{emailSupport}</span>.</p>
+                        <p>Thank you for choosing Binna's Logistics Global.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Email Footer */}
+                  <div className="bg-slate-50 p-4 border-t border-gray-100 text-center text-[10px] text-gray-400 font-medium">
+                    <p>© {new Date().getFullYear()} Binna's Logistics Global. All Rights Reserved.</p>
+                    <p className="mt-1 font-sans">Limousine Park, International Airport Road, Lagos, Nigeria / Baiyun District, Guangzhou, China</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Footer setCurrentTab={setCurrentTab} companySettings={db?.companySettings} />
     </div>
   );
 }

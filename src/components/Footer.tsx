@@ -3,11 +3,22 @@ import { Ship, Mail, Phone, MapPin, Facebook, Instagram, CheckCircle, Send } fro
 
 interface FooterProps {
   setCurrentTab: (tab: string) => void;
+  companySettings?: any;
 }
 
-export default function Footer({ setCurrentTab }: FooterProps) {
+export default function Footer({ setCurrentTab, companySettings }: FooterProps) {
   const [email, setEmail] = useState("");
   const [subscribed, setSubscribed] = useState(false);
+
+  const companyName = companySettings?.companyInfo?.name || "Binna's Logistics Global";
+  const description = companySettings?.companyInfo?.description || "Binna's Logistics Global is your trusted shipping and sourcing partner connecting China and Nigeria through reliable, affordable, and transparent logistics solutions.";
+  const addressNigeria = companySettings?.officeLocations?.nigeria?.address || "Limousine Park, International Airport, Lagos, Nigeria / International Airport, Abuja, Nigeria";
+  const phoneNigeria = companySettings?.contactInfo?.phoneNigeria || "08160850963";
+  const facebookUrl = companySettings?.socialMedia?.facebook || "https://www.facebook.com/binnas.globa";
+  const instagramUrl = companySettings?.socialMedia?.instagram || "https://www.instagram.com/binnasgloba?igsh=MXJzbmg2b202OHdmYw==";
+  const tiktokUrl = companySettings?.socialMedia?.tiktok || "";
+  const whatsAppNumber = companySettings?.whatsAppSettings?.whatsAppNumber || "2348160850963";
+  const defaultWhatsAppMsg = companySettings?.whatsAppSettings?.defaultMessage || "Hello Binna's Logistics, I would like to make an enquiry about your services.";
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +32,9 @@ export default function Footer({ setCurrentTab }: FooterProps) {
   };
 
   const handleNavClick = (tabId: string) => {
+    if (window.location.pathname !== "/") {
+      window.history.pushState({}, "", "/");
+    }
     setCurrentTab(tabId);
     window.location.hash = tabId;
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -33,24 +47,28 @@ export default function Footer({ setCurrentTab }: FooterProps) {
           
           {/* Column 1: Brand & Desc */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xl font-black tracking-tight text-white">
-                Binna's <span className="text-[#0f4c81]">Logistics</span> <span className="text-[#dc2626]">Global</span>
+            <div className="flex items-center">
+              <span className="text-xl font-black tracking-tight leading-tight select-none flex flex-col">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-white">Binna's</span>
+                  <span className="text-[#0f4c81]">Logistics</span>
+                </span>
+                <span className="text-[#dc2626]">Global</span>
               </span>
             </div>
             <p className="text-sm text-gray-400 leading-relaxed">
-              Binna's Logistics Global is your trusted shipping and sourcing partner connecting China and Nigeria through reliable, affordable, and transparent logistics solutions.
+              {description}
             </p>
             
             {/* Contacts quick highlights */}
             <div className="space-y-2 pt-2 text-sm text-gray-400">
               <div className="flex items-start gap-2.5">
                 <MapPin size={16} className="text-[#dc2626] mt-0.5 flex-shrink-0" />
-                <span>Limousine Park, International Airport, Lagos, Nigeria / International Airport, Abuja, Nigeria</span>
+                <span>{addressNigeria}</span>
               </div>
               <div className="flex items-center gap-2.5">
                 <Phone size={16} className="text-[#dc2626] flex-shrink-0" />
-                <span>08160850963</span>
+                <span>{phoneNigeria}</span>
               </div>
             </div>
           </div>
@@ -147,7 +165,7 @@ export default function Footer({ setCurrentTab }: FooterProps) {
               </span>
               <div className="flex gap-3">
                 <a
-                  href="https://www.facebook.com/binnas.globa"
+                  href={facebookUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="w-8 h-8 rounded-full bg-gray-800 hover:bg-[#0f4c81] hover:text-white flex items-center justify-center transition-all text-gray-400"
@@ -155,15 +173,26 @@ export default function Footer({ setCurrentTab }: FooterProps) {
                   <Facebook size={15} />
                 </a>
                 <a
-                  href="https://www.instagram.com/binnasgloba?igsh=MXJzbmg2b202OHdmYw=="
+                  href={instagramUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="w-8 h-8 rounded-full bg-gray-800 hover:bg-[#dc2626] hover:text-white flex items-center justify-center transition-all text-gray-400"
                 >
                   <Instagram size={15} />
                 </a>
+                {tiktokUrl && (
+                  <a
+                    href={tiktokUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-8 h-8 rounded-full bg-gray-800 hover:bg-black hover:text-white flex items-center justify-center transition-all text-gray-400 font-bold text-xs"
+                    title="TikTok"
+                  >
+                    T
+                  </a>
+                )}
                 <a
-                  href="https://wa.me/2348160850963"
+                  href={`https://wa.me/${whatsAppNumber}?text=${encodeURIComponent(defaultWhatsAppMsg)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-8 h-8 rounded-full bg-emerald-950 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-all text-emerald-400 font-bold text-xs"

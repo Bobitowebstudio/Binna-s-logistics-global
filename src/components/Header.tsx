@@ -6,10 +6,14 @@ interface HeaderProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   announcements: Announcement[];
+  companySettings?: any;
 }
 
-export default function Header({ currentTab, setCurrentTab, announcements }: HeaderProps) {
+export default function Header({ currentTab, setCurrentTab, announcements, companySettings }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const companyName = companySettings?.companyInfo?.name || "Binna's Logistics Global";
+  const companyLogo = companySettings?.companyInfo?.logo || "";
 
   const navItems = [
     { id: "home", label: "Home" },
@@ -23,6 +27,9 @@ export default function Header({ currentTab, setCurrentTab, announcements }: Hea
   const activeAnnouncements = announcements.filter((a) => a.active);
 
   const handleNavClick = (tabId: string) => {
+    if (window.location.pathname !== "/") {
+      window.history.pushState({}, "", "/");
+    }
     setCurrentTab(tabId);
     window.location.hash = tabId;
     setMobileMenuOpen(false);
@@ -38,11 +45,11 @@ export default function Header({ currentTab, setCurrentTab, announcements }: Hea
             onClick={() => handleNavClick("home")}
             className="flex items-center cursor-pointer group flex-shrink-0 mr-12"
           >
-            <div>
-              <span className="text-2xl font-extrabold tracking-tight text-gray-900 block leading-tight">
-                Binna's <span className="text-[#0f4c81]">Logistics</span> <span className="text-[#dc2626]">Global</span>
-              </span>
-            </div>
+            <span className="text-xl sm:text-2xl font-black tracking-tight leading-none select-none">
+              <span className="text-[#0f172a]">Binna's</span>{" "}
+              <span className="text-[#0f4c81]">Logistics</span>{" "}
+              <span className="text-[#dc2626]">Global</span>
+            </span>
           </div>
 
           {/* Desktop Navigation - pushed to the right with ml-auto to maximize horizontal spacing from the logo */}
