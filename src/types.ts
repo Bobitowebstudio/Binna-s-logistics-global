@@ -127,7 +127,7 @@ export interface Submission {
   serviceNeeded: string;
   message: string;
   date: string;
-  status: "Unread" | "Read" | "Contacted" | "Resolved";
+  status: "Unread" | "Read" | "Contacted" | "Resolved" | "Replied";
 }
 
 export interface AuditLog {
@@ -136,6 +136,16 @@ export interface AuditLog {
   details: string;
   timestamp: string;
   user: string;
+}
+
+export interface CustomerConversation {
+  id: string;
+  customer_name: string;
+  phone: string;
+  service: string;
+  message: string;
+  direction: "Outgoing";
+  created_at: string;
 }
 
 export interface CompanySettings {
@@ -209,4 +219,5 @@ export interface WebsiteDatabase {
   submissions: Submission[];
   logs: AuditLog[];
   companySettings?: CompanySettings;
+  customer_conversations?: CustomerConversation[];
 }

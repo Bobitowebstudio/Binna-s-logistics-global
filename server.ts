@@ -134,6 +134,7 @@ function getDB() {
         };
         fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), "utf-8");
       }
+      data.customer_conversations = data.customer_conversations || [];
       return data;
     }
   } catch (error) {
@@ -314,6 +315,30 @@ app.get("/api/db", authenticateAdmin, async (req, res) => {
     } catch (err: any) {
       console.error("Supabase exception during fetch:", err);
       addLog("Supabase Sync Failure", `Exception while fetching orders from Supabase: ${err.message}`);
+    }
+
+    try {
+      const { data: convs, error: convsError } = await supabase
+        .from("customer_conversations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (convsError) {
+        if (convsError.message.includes("Could not find the table") || convsError.message.includes("does not exist")) {
+          console.info("ℹ️ customer_conversations table does not exist in Supabase yet. Seamlessly falling back to local file storage.");
+        } else {
+          console.warn("Failed to fetch customer conversations from Supabase:", convsError.message);
+        }
+      } else if (convs) {
+        db.customer_conversations = convs;
+        
+        const currentDb = getDB();
+        currentDb.customer_conversations = convs;
+        saveDB(currentDb);
+        console.log(`✅ Loaded ${convs.length} customer conversations directly from Supabase.`);
+      }
+    } catch (err: any) {
+      console.info("Supabase exception during customer_conversations fetch (falling back to local file storage):", err.message || err);
     }
   }
 
@@ -539,6 +564,104 @@ app.post("/api/submissions/status", authenticateAdmin, async (req, res) => {
 
   addLog("Enquiry Status Changed", `Updated status of submission ID ${id} to "${status}"`);
   return res.json({ success: true });
+});
+
+// Get all customer conversations (Admin only)
+app.get("/api/conversations", authenticateAdmin, async (req, res) => {
+  const db = getDB();
+  db.customer_conversations = db.customer_conversations || [];
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("customer_conversations")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        if (error.message.includes("Could not find the table") || error.message.includes("does not exist")) {
+          console.info("ℹ️ customer_conversations table does not exist in Supabase yet. Seamlessly falling back to local file storage.");
+        } else {
+          console.warn("Failed to query customer_conversations from Supabase:", error.message);
+        }
+      } else if (data) {
+        db.customer_conversations = data;
+        
+        // Update local file cache
+        const currentDb = getDB();
+        currentDb.customer_conversations = data;
+        saveDB(currentDb);
+        console.log(`✅ Loaded ${data.length} customer conversations directly from Supabase.`);
+      }
+    } catch (err: any) {
+      console.info("Supabase exception while fetching conversations:", err.message || err);
+    }
+  }
+
+  return res.json({ success: true, conversations: db.customer_conversations });
+});
+
+// Create new customer conversation (Admin only)
+app.post("/api/conversations", authenticateAdmin, async (req, res) => {
+  const { id, customer_name, phone, service, message, direction, created_at } = req.body;
+
+  if (!customer_name || !phone || !message) {
+    return res.status(400).json({ error: "Missing required fields: customer_name, phone, message" });
+  }
+
+  const db = getDB();
+  db.customer_conversations = db.customer_conversations || [];
+
+  const cleanId = id || `conv-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const cleanCreatedAt = created_at || new Date().toISOString();
+
+  const newConversation = {
+    id: cleanId,
+    customer_name: sanitizeString(customer_name),
+    phone: sanitizeString(phone),
+    service: service ? sanitizeString(service) : "General Enquiry",
+    message: sanitizeString(message),
+    direction: direction || "Outgoing",
+    created_at: cleanCreatedAt,
+  };
+
+  db.customer_conversations.unshift(newConversation);
+  saveDB(db);
+
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from("customer_conversations")
+        .insert({
+          id: cleanId,
+          customer_name: newConversation.customer_name,
+          phone: newConversation.phone,
+          service: newConversation.service,
+          message: newConversation.message,
+          direction: newConversation.direction,
+          created_at: newConversation.created_at,
+        });
+
+      if (error) {
+        if (error.message.includes("Could not find the table") || error.message.includes("does not exist")) {
+          console.info("ℹ️ customer_conversations table does not exist in Supabase yet. Saved locally.");
+        } else {
+          console.error("Supabase conversation insert error:", error.message);
+          addLog(
+            "Supabase Conversation Insert Warning",
+            `Failed to save conversation in Supabase: ${error.message}`
+          );
+        }
+      } else {
+        console.log(`✅ Conversation ${cleanId} saved in Supabase.`);
+      }
+    } catch (err: any) {
+      console.info("Supabase exception while inserting conversation (saved locally):", err.message || err);
+    }
+  }
+
+  addLog("Customer Conversation Saved", `Saved outgoing message for ${customer_name} (${phone})`);
+  return res.json({ success: true, conversation: newConversation });
 });
 
 // Media Uploader: Accepts base64 image or url (Admin only)

@@ -52,6 +52,82 @@ import SubpageHeroSlider from "./components/SubpageHeroSlider";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { WebsiteDatabase, Submission, NewsItem, Announcement, ServiceCard } from "./types";
 
+const WHATSAPP_TEMPLATES = [
+  {
+    id: "shipping_quote",
+    name: "Shipping Quote Request",
+    text: `Hello {customer_name},
+
+Thank you for contacting Binna's Logistics Global.
+
+We received your inquiry regarding {service}.
+
+Kindly provide:
+• Product description
+• Weight
+• Quantity
+• Pickup location in China
+
+After receiving these details, we will send you an accurate quotation.
+
+Regards,
+Binna's Logistics Global`
+  },
+  {
+    id: "payment_request",
+    name: "Payment Request",
+    text: `Hello {customer_name},
+
+Your quotation has been prepared.
+
+Kindly make payment using the invoice provided.
+
+Once payment is confirmed, your shipment will be processed immediately.
+
+Thank you.`
+  },
+  {
+    id: "shipment_update",
+    name: "Shipment Update",
+    text: `Hello {customer_name},
+
+Your shipment is currently in transit.
+
+We will continue to provide updates until delivery.
+
+Thank you for choosing Binna's Logistics Global.`
+  },
+  {
+    id: "shipment_arrived",
+    name: "Shipment Arrived",
+    text: `Hello {customer_name},
+
+Great news!
+
+Your shipment has arrived safely in Lagos.
+
+Please contact us to arrange pickup or delivery.
+
+Thank you.`
+  },
+  {
+    id: "delivery_completed",
+    name: "Delivery Completed",
+    text: `Hello {customer_name},
+
+Your shipment has been delivered successfully.
+
+Thank you for choosing Binna's Logistics Global.
+
+We look forward to serving you again.`
+  },
+  {
+    id: "custom",
+    name: "Custom Message (Manual Typing)",
+    text: ""
+  }
+];
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("home");
   const [db, setDb] = useState<WebsiteDatabase | null>(null);
@@ -85,6 +161,13 @@ export default function App() {
 
   // Admin Dashboard Tabs: 'overview', 'content', 'services', 'news', 'announcements', 'enquiries', 'media', 'seo', 'backup'
   const [adminTab, setAdminTab] = useState<string>("overview");
+
+  // Customer WhatsApp Communication Modal State
+  const [activeInquiryForWhatsApp, setActiveInquiryForWhatsApp] = useState<Submission | null>(null);
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState<boolean>(false);
+  const [selectedWhatsAppTemplate, setSelectedWhatsAppTemplate] = useState<string>("shipping_quote");
+  const [whatsAppMessageText, setWhatsAppMessageText] = useState<string>("");
+  const [activeInquiryTab, setActiveInquiryTab] = useState<Record<string, "details" | "history">>({});
 
   // Public Contact / Quote Form State
   const [contactForm, setContactForm] = useState({
@@ -472,6 +555,98 @@ export default function App() {
     }
   };
 
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedWhatsAppTemplate(templateId);
+    const found = WHATSAPP_TEMPLATES.find((t) => t.id === templateId);
+    if (found) {
+      if (templateId === "custom") {
+        setWhatsAppMessageText("");
+      } else {
+        const sub = activeInquiryForWhatsApp;
+        if (sub) {
+          const text = found.text
+            .replace(/{customer_name}/g, sub.fullName)
+            .replace(/{service}/g, sub.serviceNeeded || "General Enquiry");
+          setWhatsAppMessageText(text);
+        }
+      }
+    }
+  };
+
+  const handleSendWhatsApp = async () => {
+    if (!activeInquiryForWhatsApp) return;
+    if (!whatsAppMessageText.trim()) {
+      addToast("Please enter a message to send", "error");
+      return;
+    }
+
+    try {
+      // 1. Save the conversation in DB / Supabase
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          customer_name: activeInquiryForWhatsApp.fullName,
+          phone: activeInquiryForWhatsApp.phone || "Not Provided",
+          service: activeInquiryForWhatsApp.serviceNeeded || "General Enquiry",
+          message: whatsAppMessageText,
+          direction: "Outgoing",
+        }),
+      });
+
+      if (!res.ok) {
+        console.warn("Could not save conversation history, continuing with WhatsApp dispatch");
+      }
+
+      // 2. Automatically update inquiry status from "Unread" to "Replied" (unless admin changes it manually)
+      if (activeInquiryForWhatsApp.status === "Unread") {
+        await fetch("/api/submissions/status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${adminToken}`,
+          },
+          body: JSON.stringify({ id: activeInquiryForWhatsApp.id, status: "Replied" }),
+        });
+      }
+
+      addToast("WhatsApp message logged successfully", "success");
+      
+      // Refresh admin data to reload conversations history and updated status
+      fetchAdminData();
+
+      // Clean/prepare phone number for WhatsApp Link
+      let cleanedPhone = activeInquiryForWhatsApp.phone || "";
+      cleanedPhone = cleanedPhone.replace(/\D/g, "");
+      if (cleanedPhone.startsWith("0") && !cleanedPhone.startsWith("234")) {
+        cleanedPhone = "234" + cleanedPhone.substring(1);
+      }
+
+      // Close modal
+      setWhatsAppModalOpen(false);
+      setActiveInquiryForWhatsApp(null);
+
+      // Open WhatsApp
+      const url = `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(whatsAppMessageText)}`;
+      window.open(url, "_blank");
+    } catch (err) {
+      console.error("Error dispatching WhatsApp communication:", err);
+      addToast("An error occurred. Opening WhatsApp anyway.", "error");
+
+      // Attempt fallback direct open
+      let cleanedPhone = activeInquiryForWhatsApp.phone || "";
+      cleanedPhone = cleanedPhone.replace(/\D/g, "");
+      if (cleanedPhone.startsWith("0") && !cleanedPhone.startsWith("234")) {
+        cleanedPhone = "234" + cleanedPhone.substring(1);
+      }
+      const url = `https://wa.me/${cleanedPhone}?text=${encodeURIComponent(whatsAppMessageText)}`;
+      window.open(url, "_blank");
+    }
+  };
+
   // Save specific section content via API
   const handleSaveSection = async (section: string, data: any) => {
     try {
@@ -812,7 +987,7 @@ export default function App() {
                         <div className="max-w-2xl text-left space-y-6">
                           <span className="inline-flex items-center gap-2 bg-red-600 text-white font-extrabold text-xs uppercase tracking-widest px-3.5 py-1 rounded-full shadow-md">
                             <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                            Guangzhou To Lagos Direct Network
+                            China to Nigeria Direct Network
                           </span>
                           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black leading-tight tracking-tight text-white">
                             {slide.headline}
@@ -2731,20 +2906,84 @@ export default function App() {
                                           ? "bg-amber-50 text-amber-600 border-amber-200"
                                           : sub.status === "Contacted"
                                           ? "bg-blue-50 text-blue-600 border-blue-200"
+                                          : sub.status === "Replied"
+                                          ? "bg-purple-50 text-purple-600 border-purple-200"
                                           : "bg-emerald-50 text-emerald-600 border-emerald-200"
                                       }`}
                                     >
                                       <option value="Unread">🔴 Unread</option>
                                       <option value="Read">🟡 Read</option>
                                       <option value="Contacted">🔵 Contacted</option>
+                                      <option value="Replied">🟣 Replied</option>
                                       <option value="Resolved">🟢 Resolved</option>
                                     </select>
                                   </div>
                                 </div>
 
-                                <div className="bg-white p-4 rounded-xl border border-gray-100 text-xs text-gray-700 font-medium leading-relaxed italic">
-                                  "{sub.message}"
+                                {/* Inquiry Tabs Layout */}
+                                <div className="border-b border-gray-200/80 flex space-x-4">
+                                  <button
+                                    onClick={() => {
+                                      setActiveInquiryTab(prev => ({ ...prev, [sub.id]: "details" }));
+                                    }}
+                                    className={`pb-2 text-xs font-bold transition-all border-b-2 ${
+                                      activeInquiryTab[sub.id] !== "history"
+                                        ? "text-[#0f4c81] border-[#0f4c81]"
+                                        : "text-gray-400 border-transparent hover:text-gray-600"
+                                    }`}
+                                  >
+                                    📝 Inquiry Details
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActiveInquiryTab(prev => ({ ...prev, [sub.id]: "history" }));
+                                    }}
+                                    className={`pb-2 text-xs font-bold transition-all border-b-2 ${
+                                      activeInquiryTab[sub.id] === "history"
+                                        ? "text-[#0f4c81] border-[#0f4c81]"
+                                        : "text-gray-400 border-transparent hover:text-gray-600"
+                                    }`}
+                                  >
+                                    💬 Conversation History
+                                  </button>
                                 </div>
+
+                                {activeInquiryTab[sub.id] === "history" ? (
+                                  <div className="bg-white p-4 rounded-xl border border-gray-150 text-xs text-gray-700 font-medium leading-relaxed max-h-48 overflow-y-auto space-y-3">
+                                    {(() => {
+                                      const customerConvs = (db as any)?.customer_conversations || [];
+                                      const matchedConvs = customerConvs.filter(
+                                        (c: any) =>
+                                          (c.phone && sub.phone && c.phone.trim() === sub.phone.trim()) ||
+                                          (c.customer_name && sub.fullName && c.customer_name.toLowerCase() === sub.fullName.toLowerCase())
+                                      );
+
+                                      if (matchedConvs.length === 0) {
+                                        return (
+                                          <div className="text-center py-4 text-gray-400 italic">
+                                            No previous WhatsApp conversation history found for this customer.
+                                          </div>
+                                        );
+                                      }
+
+                                      return matchedConvs.map((c: any) => (
+                                        <div key={c.id} className="border-b border-gray-100 pb-2.5 last:border-0 last:pb-0">
+                                          <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold mb-1">
+                                            <span>📞 Outgoing via WhatsApp</span>
+                                            <span>{new Date(c.created_at).toLocaleString()}</span>
+                                          </div>
+                                          <p className="whitespace-pre-wrap text-gray-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100 font-sans">
+                                            {c.message}
+                                          </p>
+                                        </div>
+                                      ));
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <div className="bg-white p-4 rounded-xl border border-gray-100 text-xs text-gray-700 font-medium leading-relaxed italic">
+                                    "{sub.message}"
+                                  </div>
+                                )}
 
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between pt-3 border-t border-gray-150 gap-4">
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-500 flex-1">
@@ -2755,20 +2994,38 @@ export default function App() {
                                       <Phone size={13} className="text-[#0f4c81] flex-shrink-0" /> Phone: <span className="text-gray-900 font-bold">{sub.phone || "Not provided"}</span>
                                     </div>
                                   </div>
-                                  <button
-                                    onClick={() => {
-                                      setActiveInquiryForInvoice(sub);
-                                      setInvoiceId(`INV-${new Date().getFullYear()}-${sub.id.substring(0, 4).toUpperCase()}`);
-                                      setInvoiceItems([
-                                        { description: `${sub.serviceNeeded} Transit Logistics Service`, quantity: 1, unitPrice: 480 },
-                                        { description: "Customs Clearing & Sourcing Admin Handling", quantity: 1, unitPrice: 150 },
-                                      ]);
-                                      setShowInvoiceEmailView(false);
-                                    }}
-                                    className="bg-[#0f4c81] hover:bg-blue-800 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap self-start sm:self-center"
-                                  >
-                                    <span>🧾 Generate Invoice / Receipt</span>
-                                  </button>
+                                  
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        setActiveInquiryForWhatsApp(sub);
+                                        setWhatsAppModalOpen(true);
+                                        const defaultTemplate = WHATSAPP_TEMPLATES[0].text
+                                          .replace(/{customer_name}/g, sub.fullName)
+                                          .replace(/{service}/g, sub.serviceNeeded || "General Enquiry");
+                                        setWhatsAppMessageText(defaultTemplate);
+                                        setSelectedWhatsAppTemplate("shipping_quote");
+                                      }}
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+                                    >
+                                      <span>💬 Reply on WhatsApp</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        setActiveInquiryForInvoice(sub);
+                                        setInvoiceId(`INV-${new Date().getFullYear()}-${sub.id.substring(0, 4).toUpperCase()}`);
+                                        setInvoiceItems([
+                                          { description: `${sub.serviceNeeded} Transit Logistics Service`, quantity: 1, unitPrice: 480 },
+                                          { description: "Customs Clearing & Sourcing Admin Handling", quantity: 1, unitPrice: 150 },
+                                        ]);
+                                        setShowInvoiceEmailView(false);
+                                      }}
+                                      className="bg-[#0f4c81] hover:bg-blue-800 text-white font-extrabold text-[10px] px-3.5 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all uppercase tracking-wider cursor-pointer whitespace-nowrap"
+                                    >
+                                      <span>🧾 Generate Invoice / Receipt</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             ))
@@ -3576,6 +3833,111 @@ export default function App() {
           </ProtectedRoute>
         )}
       </main>
+
+      {/* ==================== WHATSAPP COMMUNICATION MODAL ==================== */}
+      {whatsAppModalOpen && activeInquiryForWhatsApp && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in no-print" id="whatsapp-modal">
+          <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="bg-slate-900 px-6 py-4 flex items-center justify-between text-white">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">💬</span>
+                <div>
+                  <h3 className="font-extrabold text-sm tracking-tight">WhatsApp Communication Portal</h3>
+                  <p className="text-[10px] text-emerald-400 font-extrabold tracking-widest uppercase">Admin Desk Link</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setWhatsAppModalOpen(false);
+                  setActiveInquiryForWhatsApp(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer p-1 text-sm font-black"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5 flex-grow">
+              {/* Customer Details Card */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-150 space-y-3">
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="text-[10px] text-[#0f4c81] font-black uppercase tracking-wider">Customer Details</span>
+                  <span className="bg-blue-100 text-[#0f4c81] text-[9px] font-black px-2 py-0.5 rounded-md">
+                    {activeInquiryForWhatsApp.serviceNeeded}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-700">
+                  <div>
+                    <p className="text-gray-400 font-bold text-[10px] uppercase">Customer Name</p>
+                    <p className="font-extrabold text-slate-900">{activeInquiryForWhatsApp.fullName}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 font-bold text-[10px] uppercase">Phone Number</p>
+                    <p className="font-extrabold text-slate-900">{activeInquiryForWhatsApp.phone || "Not provided"}</p>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-200">
+                  <p className="text-gray-400 font-bold text-[10px] uppercase mb-1">Original Enquiry Message</p>
+                  <p className="text-xs text-gray-600 bg-white p-2.5 rounded-lg border border-slate-100 italic">
+                    "{activeInquiryForWhatsApp.message}"
+                  </p>
+                </div>
+              </div>
+
+              {/* Template Selector */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-600">Select Communication Template</label>
+                <select
+                  value={selectedWhatsAppTemplate}
+                  onChange={(e) => handleTemplateChange(e.target.value)}
+                  className="w-full text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#0f4c81] transition-all"
+                >
+                  {WHATSAPP_TEMPLATES.map((tpl) => (
+                    <option key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Large Editable Message Box */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="block text-xs font-bold text-gray-600">Editable Message Content</label>
+                  <span className="text-[10px] text-gray-400 font-bold">You can fully customize this before sending</span>
+                </div>
+                <textarea
+                  value={whatsAppMessageText}
+                  onChange={(e) => setWhatsAppMessageText(e.target.value)}
+                  rows={8}
+                  placeholder="Type your custom WhatsApp message here..."
+                  className="w-full text-xs font-medium text-slate-800 bg-white border border-slate-200 rounded-2xl p-4 focus:outline-none focus:ring-2 focus:ring-[#0f4c81] transition-all font-sans leading-relaxed"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-3">
+              <button
+                onClick={() => {
+                  setWhatsAppModalOpen(false);
+                  setActiveInquiryForWhatsApp(null);
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-slate-100 rounded-xl transition-all cursor-pointer text-center"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendWhatsApp}
+                className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer uppercase tracking-wider"
+              >
+                <span>💬 Open WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ==================== 8. INVOICE & RECEIPT GENERATOR MODAL ==================== */}
       {activeInquiryForInvoice && (
